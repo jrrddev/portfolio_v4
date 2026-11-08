@@ -98,7 +98,6 @@
   text-underline-offset: 0.25em;
 }
 
-/* Native popovers preserve the reader's position and support Escape and light dismissal. */
 .certificate-viewer {
   inset: 0;
   margin: auto;

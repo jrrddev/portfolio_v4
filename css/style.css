@@ -106,7 +106,6 @@ a, summary { text-underline-offset: .23em; }
 .nav-links a:hover::before, .nav-links a:focus-visible::before { transform: scaleX(1); }
 .nav-links a:hover { color: #914019; }
 
-/* Each section owns the underline while it crosses the same reading line. */
 @supports (timeline-scope: --profile) and (animation-timeline: --profile) and (view-timeline-inset: 20% 80%) {
     body { timeline-scope: --profile, --projects, --experience, --research, --training; }
     main > section {
@@ -132,7 +131,6 @@ a, summary { text-underline-offset: .23em; }
         from, to { transform: scaleX(1); }
     }
 }
-/* Older browsers can still highlight the link chosen in navigation. */
 @supports not ((timeline-scope: --profile) and (animation-timeline: --profile) and (view-timeline-inset: 20% 80%)) {
     body:not(:has(main > section:target, #contact:target)) nav a[href="#profile"]::after,
     body:has(#profile:target) nav a[href="#profile"]::after,
