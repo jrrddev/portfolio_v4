@@ -652,7 +652,197 @@
                     else if (text === 'Next.js' || text === 'React' || text === 'TypeScript') applyFilter('React');
                 });
             });
+
+            // 3D Multi-Layer Parallax Tilt on Project Cards
+            if (!prefersReducedMotion) {
+                const frame = card.querySelector('.browser-frame');
+                const tags = card.querySelector('.tags');
+                card.addEventListener('pointermove', (e) => {
+                    const rect = card.getBoundingClientRect();
+                    const nx = (e.clientX - rect.left) / rect.width - 0.5;
+                    const ny = (e.clientY - rect.top) / rect.height - 0.5;
+                    const rx = (-ny * 7).toFixed(2);
+                    const ry = (nx * 9).toFixed(2);
+                    card.style.transform = `perspective(950px) rotateX(${rx}deg) rotateY(${ry}deg) translateY(-3px)`;
+                    if (frame) {
+                        frame.style.transform = `rotate(0deg) scale(1.035) translate3d(${(nx * 8).toFixed(1)}px, ${(ny * 6).toFixed(1)}px, 18px)`;
+                    }
+                    if (tags) {
+                        tags.style.transform = `translate3d(${(nx * 4).toFixed(1)}px, ${(ny * 3).toFixed(1)}px, 10px)`;
+                    }
+                });
+
+                card.addEventListener('pointerleave', () => {
+                    card.style.transform = '';
+                    if (frame) frame.style.transform = '';
+                    if (tags) tags.style.transform = '';
+                });
+            }
         });
+    }
+
+    /* ==========================================================================
+       5B. 3D ISO/IEC 25010 QUALITY & ARCHITECTURE LATTICE (Research Section)
+       ========================================================================== */
+    function initResearch3DLattice() {
+        const studyResults = document.querySelector('.study-results');
+        if (!studyResults) return;
+
+        const widget = document.createElement('div');
+        widget.className = 'iso-3d-widget';
+        widget.setAttribute('aria-hidden', 'true');
+        widget.innerHTML = `
+            <div class="iso-3d-header">
+                <span>ISO/IEC 25010 3D Mesh</span>
+                <span>Drag to rotate ↻</span>
+            </div>
+            <canvas class="iso-3d-canvas"></canvas>
+        `;
+        studyResults.appendChild(widget);
+
+        const canvas = widget.querySelector('.iso-3d-canvas');
+        const ctx = canvas.getContext('2d');
+        let w = 0;
+        let h = 175;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+        function resize() {
+            const rect = canvas.getBoundingClientRect();
+            w = Math.max(1, rect.width || 260);
+            h = Math.max(1, rect.height || 175);
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        resize();
+        window.addEventListener('resize', resize, { passive: true });
+
+        // 6 vertices of an Octahedron representing ISO/IEC 25010 Software Quality Dimensions + Center Core (iFind)
+        const nodes = [
+            { x: 0, y: 1.05, z: 0, label: 'FUNCTIONAL' },
+            { x: 0, y: -1.05, z: 0, label: 'PORTABILITY' },
+            { x: 1.05, y: 0, z: 0, label: 'USABILITY' },
+            { x: -1.05, y: 0, z: 0, label: 'SECURITY' },
+            { x: 0, y: 0, z: 1.05, label: 'RELIABILITY' },
+            { x: 0, y: 0, z: -1.05, label: 'MAINTAINABILITY' },
+            { x: 0, y: 0, z: 0, label: 'iFIND 4.50', core: true }
+        ];
+
+        const edges = [
+            [0, 2], [0, 3], [0, 4], [0, 5],
+            [1, 2], [1, 3], [1, 4], [1, 5],
+            [2, 4], [4, 3], [3, 5], [5, 2],
+            [6, 0], [6, 1], [6, 2], [6, 3], [6, 4], [6, 5]
+        ];
+
+        let rotX = 0.35;
+        let rotY = 0.55;
+        let velX = 0.002;
+        let velY = 0.007;
+        let dragging = false;
+        let lastX = 0;
+        let lastY = 0;
+
+        canvas.addEventListener('pointerdown', (e) => {
+            dragging = true;
+            lastX = e.clientX;
+            lastY = e.clientY;
+            canvas.setPointerCapture(e.pointerId);
+        });
+
+        canvas.addEventListener('pointermove', (e) => {
+            if (!dragging) return;
+            const dx = e.clientX - lastX;
+            const dy = e.clientY - lastY;
+            lastX = e.clientX;
+            lastY = e.clientY;
+            velY = dx * 0.012;
+            velX = dy * 0.012;
+            rotY += velY;
+            rotX += velX;
+        });
+
+        canvas.addEventListener('pointerup', () => {
+            dragging = false;
+        });
+
+        let visible = false;
+        const obs = new IntersectionObserver((entries) => {
+            visible = entries[0].isIntersecting;
+        }, { threshold: 0.05 });
+        obs.observe(studyResults);
+
+        function renderLattice() {
+            if (visible || prefersReducedMotion) {
+                if (!dragging && !prefersReducedMotion) {
+                    rotY += velY;
+                    rotX += velX;
+                    velX *= 0.96;
+                    velY = velY * 0.98 + 0.00015;
+                }
+
+                ctx.clearRect(0, 0, w, h);
+                const radius = Math.min(w, h) * 0.35;
+                const cosX = Math.cos(rotX);
+                const sinX = Math.sin(rotX);
+                const cosY = Math.cos(rotY);
+                const sinY = Math.sin(rotY);
+
+                const projected = nodes.map((n) => {
+                    // Rotate Y
+                    const x1 = n.x * cosY - n.z * sinY;
+                    const z1 = n.z * cosY + n.x * sinY;
+                    // Rotate X
+                    const y2 = n.y * cosX - z1 * sinX;
+                    const z2 = z1 * cosX + n.y * sinX;
+
+                    const perspective = 3.2 / (3.2 + z2 * 0.75);
+                    return {
+                        sx: w * 0.5 + x1 * radius * perspective,
+                        sy: h * 0.52 - y2 * radius * perspective,
+                        z: z2,
+                        scale: perspective,
+                        label: n.label,
+                        core: n.core
+                    };
+                });
+
+                // Draw edges
+                edges.forEach(([a, b]) => {
+                    const pa = projected[a];
+                    const pb = projected[b];
+                    const isCoreEdge = pa.core || pb.core;
+                    ctx.beginPath();
+                    ctx.moveTo(pa.sx, pa.sy);
+                    ctx.lineTo(pb.sx, pb.sy);
+                    ctx.strokeStyle = isCoreEdge
+                        ? 'rgba(255, 113, 60, 0.38)'
+                        : 'rgba(25, 60, 50, 0.35)';
+                    ctx.lineWidth = isCoreEdge ? 1 : 1.25;
+                    ctx.stroke();
+                });
+
+                // Draw vertices & technical labels
+                projected.forEach((p) => {
+                    ctx.beginPath();
+                    const r = (p.core ? 4.5 : 3.2) * p.scale;
+                    ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+                    ctx.fillStyle = p.core ? '#ff713c' : '#193c32';
+                    ctx.fill();
+
+                    if (p.z < 0.55) {
+                        ctx.font = `700 ${Math.round(8.5 * p.scale)}px "DM Sans", sans-serif`;
+                        ctx.fillStyle = p.core ? '#a74216' : 'rgba(25, 60, 50, 0.85)';
+                        ctx.fillText(p.label, p.sx + 6, p.sy + 3);
+                    }
+                });
+            }
+
+            if (!prefersReducedMotion) {
+                requestAnimationFrame(renderLattice);
+            }
+        }
+        requestAnimationFrame(renderLattice);
     }
 
     /* ==========================================================================
@@ -857,6 +1047,342 @@
     }
 
     /* ==========================================================================
+       8. INTERACTIVE 3D PARTICLE CLOUD FIELD (Floating Dust & Elevation Grids)
+       ========================================================================== */
+    function init3DParticleCloudField() {
+        const canvas = document.createElement('canvas');
+        canvas.className = 'particle-cloud-canvas';
+        canvas.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(canvas);
+
+        // Interactive Mode Pill (Auto Scroll-Morph / Locked Elevation Grid / Floating Dust)
+        const modePill = document.createElement('button');
+        modePill.type = 'button';
+        modePill.className = 'particle-mode-pill';
+        modePill.dataset.mode = 'auto';
+        modePill.setAttribute('aria-label', 'Switch 3D Particle Field mode');
+        modePill.innerHTML = '<span class="mode-dot" aria-hidden="true"></span><span class="mode-label">3D Field: Dust ⇄ Grid</span>';
+        document.body.appendChild(modePill);
+
+        const modeLabel = modePill.querySelector('.mode-label');
+        const modes = ['auto', 'grid', 'dust'];
+        let currentModeIdx = 0;
+
+        modePill.addEventListener('click', () => {
+            currentModeIdx = (currentModeIdx + 1) % modes.length;
+            const mode = modes[currentModeIdx];
+            modePill.dataset.mode = mode === 'grid' ? 'grid' : 'auto';
+            if (mode === 'auto') modeLabel.textContent = '3D Field: Dust ⇄ Grid';
+            else if (mode === 'grid') modeLabel.textContent = '3D Field: Elevation Grid';
+            else modeLabel.textContent = '3D Field: Floating Dust';
+        });
+
+        const ctx = canvas.getContext('2d');
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        resize();
+        window.addEventListener('resize', resize, { passive: true });
+
+        // Grid dimensions: 20 cols x 14 rows = 280 3D particles
+        const cols = 20;
+        const rows = 14;
+        const total = cols * rows;
+        const fov = 520;
+
+        // Cursor & scroll state
+        const mouse = {
+            x: width * 0.5,
+            y: height * 0.5,
+            normX: 0,
+            normY: 0,
+            smoothX: 0,
+            smoothY: 0,
+            active: false
+        };
+
+        let lastScrollY = window.scrollY;
+        let scrollEnergy = 0;
+        let gridMorph = 0; // 0 = Floating 3D Dust, 1 = 3D Geometric Elevation Grid
+
+        window.addEventListener('pointermove', (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+            mouse.normX = (e.clientX / width - 0.5) * 2;
+            mouse.normY = (e.clientY / height - 0.5) * 2;
+            mouse.active = true;
+        }, { passive: true });
+
+        window.addEventListener('pointerleave', () => {
+            mouse.active = false;
+        });
+
+        window.addEventListener('scroll', () => {
+            const dy = Math.abs(window.scrollY - lastScrollY);
+            lastScrollY = window.scrollY;
+            scrollEnergy = Math.min(1.35, scrollEnergy + dy * 0.018);
+        }, { passive: true });
+
+        // Initialize 3D particles with both Free-Dust coordinates & Grid-Index identity
+        const particles = [];
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const idx = r * cols + c;
+                const isOrange = idx % 17 === 0;
+                const isCrosshair = idx % 23 === 0;
+                particles.push({
+                    r,
+                    c,
+                    // Normalized grid coordinates (-1 to 1)
+                    gnx: (c / (cols - 1) - 0.5) * 2,
+                    gnz: (r / (rows - 1) - 0.5) * 2,
+                    // Free-floating 3D dust coordinates (-1 to 1)
+                    dx: (Math.random() - 0.5) * 2.2,
+                    dy: (Math.random() - 0.5) * 2.2,
+                    dz: (Math.random() - 0.5) * 1.8,
+                    // Organic drift velocities
+                    vx: (Math.random() - 0.5) * 0.0012,
+                    vy: -0.0004 - Math.random() * 0.0009,
+                    vz: (Math.random() - 0.5) * 0.001,
+                    // Cursor repulsion 3D spring offsets
+                    rx: 0,
+                    ry: 0,
+                    rz: 0,
+                    phase: Math.random() * Math.PI * 2,
+                    size: isOrange ? 2.4 : 1.35 + Math.random() * 1.15,
+                    isOrange,
+                    isCrosshair,
+                    // Screen projection cache
+                    sx: 0,
+                    sy: 0,
+                    scale: 1,
+                    visible: false
+                });
+            }
+        }
+
+        function renderParticleField(now) {
+            const t = prefersReducedMotion ? 1.0 : now * 0.001;
+
+            // Decay scroll energy & compute target morph between Dust (0) and Elevation Grid (1)
+            scrollEnergy *= 0.92;
+            const mode = modes[currentModeIdx];
+
+            // Also check proximity to section boundaries for subtle automatic grid alignment
+            const scrollMod = (window.scrollY % Math.max(400, window.innerHeight * 0.85)) / Math.max(400, window.innerHeight * 0.85);
+            const boundaryPulse = Math.exp(-Math.pow((scrollMod - 0.5) * 4.5, 2)) * 0.32;
+
+            let targetMorph = 0;
+            if (mode === 'grid') {
+                targetMorph = 1;
+            } else if (mode === 'dust') {
+                targetMorph = 0;
+            } else {
+                targetMorph = Math.min(1, scrollEnergy * 0.95 + boundaryPulse);
+            }
+
+            gridMorph += (targetMorph - gridMorph) * 0.075;
+            mouse.smoothX += (mouse.normX - mouse.smoothX) * 0.06;
+            mouse.smoothY += (mouse.normY - mouse.smoothY) * 0.06;
+
+            ctx.clearRect(0, 0, width, height);
+
+            // 3D rotation angles for the elevation grid & dust volume
+            const yaw = mouse.smoothX * 0.22 + Math.sin(t * 0.14) * 0.06;
+            const pitch = 0.52 * gridMorph + mouse.smoothY * 0.16;
+            const cosY = Math.cos(yaw);
+            const sinY = Math.sin(yaw);
+            const cosP = Math.cos(pitch);
+            const sinP = Math.sin(pitch);
+
+            const spanX = width * 0.62;
+            const spanY = height * 0.56;
+            const spanZ = 340;
+            const scrollOffset = window.scrollY * 0.0018;
+
+            // Update & project all 3D particles
+            for (let i = 0; i < total; i++) {
+                const p = particles[i];
+
+                // 1. Update free-floating dust position
+                if (!prefersReducedMotion) {
+                    p.dx += p.vx + Math.sin(t * 0.4 + p.phase) * 0.00045;
+                    p.dy += p.vy + Math.cos(t * 0.35 + p.phase) * 0.00035;
+                    p.dz += p.vz;
+
+                    // Wrap dust smoothly around volume bounds
+                    if (p.dx > 1.15) p.dx = -1.15;
+                    if (p.dx < -1.15) p.dx = 1.15;
+                    if (p.dy > 1.15) p.dy = -1.15;
+                    if (p.dy < -1.15) p.dy = 1.15;
+                    if (p.dz > 0.95) p.dz = -0.95;
+                    if (p.dz < -0.95) p.dz = 0.95;
+                }
+
+                const dustX = p.dx * spanX;
+                const dustY = ((p.dy - (scrollOffset % 2.3) + 3.45) % 2.3 - 1.15) * spanY;
+                const dustZ = p.dz * spanZ;
+
+                // 2. Compute 3D Topographic Elevation Grid target position
+                const gx = p.gnx * (width * 0.52);
+                const gz = p.gnz * 290;
+                const waveElev =
+                    Math.sin(p.gnx * 3.2 + t * 0.7 + scrollOffset) *
+                    Math.cos(p.gnz * 2.6 + t * 0.5) * 46 +
+                    Math.cos((p.gnx * p.gnx + p.gnz * p.gnz) * 2.2 - t * 0.6) * 22;
+                const gy = waveElev - 20;
+
+                // 3. Interpolate between Floating Dust and 3D Elevation Grid
+                const wx = dustX + (gx - dustX) * gridMorph + p.rx;
+                const wy = dustY + (gy - dustY) * gridMorph + p.ry;
+                const wz = dustZ + (gz - dustZ) * gridMorph + p.rz;
+
+                // 4. 3D Camera Rotation (Yaw & Pitch)
+                const x1 = wx * cosY - wz * sinY;
+                const z1 = wz * cosY + wx * sinY;
+                const y2 = wy * cosP - z1 * sinP;
+                const z2 = z1 * cosP + wy * sinP + 460;
+
+                if (z2 < 80) {
+                    p.visible = false;
+                    continue;
+                }
+
+                const scale = fov / z2;
+                p.sx = width * 0.5 + x1 * scale;
+                p.sy = height * 0.52 - y2 * scale;
+                p.scale = scale;
+                p.visible = p.sx >= -40 && p.sx <= width + 40 && p.sy >= -40 && p.sy <= height + 40;
+
+                // 5. Cursor 3D Repulsion & Vortex Impulse
+                if (mouse.active && !prefersReducedMotion) {
+                    const dxScreen = p.sx - mouse.x;
+                    const dyScreen = p.sy - mouse.y;
+                    const distSq = dxScreen * dxScreen + dyScreen * dyScreen;
+                    const repelRadius = 135;
+                    if (distSq < repelRadius * repelRadius && distSq > 1) {
+                        const dist = Math.sqrt(distSq);
+                        const force = (1 - dist / repelRadius) * 4.2;
+                        p.rx += (dxScreen / dist) * force;
+                        p.ry -= (dyScreen / dist) * force;
+                        p.rz += force * 2.5;
+                    }
+                }
+
+                // Spring damping recovery
+                p.rx *= 0.88;
+                p.ry *= 0.88;
+                p.rz *= 0.88;
+            }
+
+            // Draw 3D Elevation Grid Contour Lines & Lat/Lon Intersections when morphed
+            if (gridMorph > 0.06) {
+                const gridAlpha = Math.min(0.32, gridMorph * 0.34);
+                ctx.lineWidth = 0.85;
+
+                // Latitudinal contour lines
+                for (let r = 0; r < rows; r++) {
+                    ctx.beginPath();
+                    let started = false;
+                    for (let c = 0; c < cols; c++) {
+                        const p = particles[r * cols + c];
+                        if (!p.visible) continue;
+                        if (!started) {
+                            ctx.moveTo(p.sx, p.sy);
+                            started = true;
+                        } else {
+                            ctx.lineTo(p.sx, p.sy);
+                        }
+                    }
+                    ctx.strokeStyle = r % 3 === 0
+                        ? `rgba(255, 113, 60, ${(gridAlpha * 0.85).toFixed(3)})`
+                        : `rgba(72, 92, 80, ${gridAlpha.toFixed(3)})`;
+                    ctx.stroke();
+                }
+
+                // Longitudinal grid ribs
+                ctx.strokeStyle = `rgba(72, 92, 80, ${(gridAlpha * 0.55).toFixed(3)})`;
+                for (let c = 0; c < cols; c += 2) {
+                    ctx.beginPath();
+                    let started = false;
+                    for (let r = 0; r < rows; r++) {
+                        const p = particles[r * cols + c];
+                        if (!p.visible) continue;
+                        if (!started) {
+                            ctx.moveTo(p.sx, p.sy);
+                            started = true;
+                        } else {
+                            ctx.lineTo(p.sx, p.sy);
+                        }
+                    }
+                    ctx.stroke();
+                }
+            }
+
+            // Draw Cursor Survey Triangulation Filaments & Particles
+            for (let i = 0; i < total; i++) {
+                const p = particles[i];
+                if (!p.visible) continue;
+
+                // Connect nearby particles to cursor with subtle cartographic triangulation
+                if (mouse.active) {
+                    const dx = p.sx - mouse.x;
+                    const dy = p.sy - mouse.y;
+                    const d2 = dx * dx + dy * dy;
+                    if (d2 < 12500) {
+                        const alpha = (1 - Math.sqrt(d2) / 112) * 0.28;
+                        ctx.strokeStyle = `rgba(255, 113, 60, ${alpha.toFixed(3)})`;
+                        ctx.lineWidth = 0.75;
+                        ctx.beginPath();
+                        ctx.moveTo(p.sx, p.sy);
+                        ctx.lineTo(mouse.x, mouse.y);
+                        ctx.stroke();
+                    }
+                }
+
+                const radius = Math.max(0.8, p.size * p.scale);
+                const depthAlpha = Math.min(0.78, Math.max(0.16, p.scale * 0.68));
+
+                if (p.isCrosshair) {
+                    // Draw survey fiducial crosshair (+)
+                    const arm = radius * 2.1;
+                    ctx.strokeStyle = p.isOrange
+                        ? `rgba(255, 113, 60, ${depthAlpha.toFixed(3)})`
+                        : `rgba(72, 92, 80, ${depthAlpha.toFixed(3)})`;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(p.sx - arm, p.sy);
+                    ctx.lineTo(p.sx + arm, p.sy);
+                    ctx.moveTo(p.sx, p.sy - arm);
+                    ctx.lineTo(p.sx, p.sy + arm);
+                    ctx.stroke();
+                } else {
+                    ctx.fillStyle = p.isOrange
+                        ? `rgba(255, 113, 60, ${(depthAlpha * 1.1).toFixed(3)})`
+                        : `rgba(72, 92, 80, ${depthAlpha.toFixed(3)})`;
+                    ctx.beginPath();
+                    ctx.arc(p.sx, p.sy, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            if (!prefersReducedMotion) {
+                requestAnimationFrame(renderParticleField);
+            }
+        }
+
+        requestAnimationFrame(renderParticleField);
+    }
+
+    /* ==========================================================================
        INITIALIZE ALL MODULES ON DOM READY
        ========================================================================== */
     function init() {
@@ -865,8 +1391,10 @@
         initCompassAndTilt();
         initTelemetryAndReveals();
         initProjectFilters();
+        initResearch3DLattice();
         initCertificateZoom();
         initCommandPalette();
+        init3DParticleCloudField();
     }
 
     if (document.readyState === 'loading') {
