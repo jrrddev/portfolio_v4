@@ -1183,6 +1183,11 @@
             if (e.button !== undefined && e.button !== 0) return;
 
             const isInteractive = Boolean(e.target && e.target.closest && e.target.closest(tapInteractiveSelector));
+            const isMobileOrTouch = e.pointerType === 'touch' || window.matchMedia('(max-width: 47rem), (pointer: coarse)').matches;
+
+            // On mobile / touchscreens, ignore normal background touches (like scrolling)
+            if (isMobileOrTouch && !isInteractive) return;
+
             playTapSound(isInteractive);
 
             const ripple = document.createElement('span');
