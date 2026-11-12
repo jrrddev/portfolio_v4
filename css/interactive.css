@@ -182,6 +182,69 @@
     transform: translateY(-2px);
 }
 
+.toolkit-marquee {
+    flex: 1;
+    min-width: 0;
+}
+
+.toolkit-clone {
+    display: none;
+}
+
+@media (max-width: 47rem) {
+    .toolkit {
+        overflow: hidden;
+    }
+
+    .toolkit-inner {
+        flex-direction: row;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .toolkit h2 {
+        border-right: 1px solid #789181;
+        padding-right: 1rem;
+        flex-shrink: 0;
+        position: relative;
+        z-index: 2;
+        background: var(--ink);
+    }
+
+    .toolkit-marquee {
+        overflow: hidden;
+        mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+        -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+    }
+
+    .toolkit ul {
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+        width: max-content;
+        gap: 0;
+        animation: toolkit-marquee-ltr 16s linear infinite;
+    }
+
+    .toolkit ul li {
+        white-space: nowrap;
+        flex-shrink: 0;
+        padding-right: 1.5rem;
+    }
+
+    .toolkit .toolkit-clone {
+        display: inline-flex;
+    }
+}
+
+@keyframes toolkit-marquee-ltr {
+    0% {
+        transform: translate3d(-50%, 0, 0);
+    }
+    100% {
+        transform: translate3d(0%, 0, 0);
+    }
+}
+
 /* Project Filter Bar & 3D Card Tilt */
 .project-controls {
     display: flex;

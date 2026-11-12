@@ -596,6 +596,24 @@
         }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
 
         revealTargets.forEach((el) => revealObs.observe(el));
+
+        // Mobile single-row left-to-right marquee for .toolkit
+        const toolkitInner = document.querySelector('.toolkit-inner');
+        const toolkitList = toolkitInner ? toolkitInner.querySelector('ul') : null;
+        if (toolkitInner && toolkitList && !toolkitInner.querySelector('.toolkit-marquee')) {
+            const marqueeWrap = document.createElement('div');
+            marqueeWrap.className = 'toolkit-marquee';
+            toolkitInner.insertBefore(marqueeWrap, toolkitList);
+            marqueeWrap.appendChild(toolkitList);
+
+            const origItems = Array.from(toolkitList.children);
+            origItems.forEach((li) => {
+                const clone = li.cloneNode(true);
+                clone.classList.add('toolkit-clone');
+                clone.setAttribute('aria-hidden', 'true');
+                toolkitList.appendChild(clone);
+            });
+        }
     }
 
     /* ==========================================================================
