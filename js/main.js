@@ -1127,6 +1127,18 @@
             }
             requestAnimationFrame(updateCursor);
         }
+
+        // 3. Cartographic Survey Sonar Tap / Click Ripple
+        window.addEventListener('pointerdown', (e) => {
+            if (e.button !== undefined && e.button !== 0) return;
+            const ripple = document.createElement('span');
+            ripple.className = 'tap-ripple';
+            ripple.setAttribute('aria-hidden', 'true');
+            ripple.style.left = `${e.clientX}px`;
+            ripple.style.top = `${e.clientY}px`;
+            document.body.appendChild(ripple);
+            ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
+        }, { passive: true });
     }
 
     /* ==========================================================================

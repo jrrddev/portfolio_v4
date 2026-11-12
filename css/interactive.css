@@ -598,9 +598,76 @@ html.lenis body {
 /* ==========================================================================
    #5: Tactile Micro-Interactions (Magnetic Elements & Drafting Crosshair)
    ========================================================================== */
+a,
+button,
+summary,
+.tags li,
+.compass {
+    -webkit-tap-highlight-color: transparent;
+}
+
+.button:active,
+.header-contact:active,
+.brand:active,
+.cmd-trigger:active,
+.filter-btn:active,
+.project-link:active,
+.text-link:active,
+.record-link:active,
+.certificate-close:active,
+.cert-zoom-btn:active,
+.tags li:active,
+.nav-links a:active {
+    scale: 0.95;
+}
+
+.tap-ripple {
+    position: fixed;
+    width: 28px;
+    height: 28px;
+    margin-left: -14px;
+    margin-top: -14px;
+    border: 1.5px solid var(--orange);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 130;
+    animation: tap-sonar 0.48s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.tap-ripple::before,
+.tap-ripple::after {
+    content: "";
+    position: absolute;
+    background: var(--orange);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.tap-ripple::before {
+    width: 6px;
+    height: 1px;
+}
+
+.tap-ripple::after {
+    width: 1px;
+    height: 6px;
+}
+
+@keyframes tap-sonar {
+    0% {
+        transform: scale(0.35);
+        opacity: 0.95;
+    }
+    100% {
+        transform: scale(2.15);
+        opacity: 0;
+    }
+}
+
 .is-magnetic {
     will-change: transform;
-    transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+    transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), scale 0.12s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
 
 .is-magnetic.is-pulling {
