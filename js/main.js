@@ -1118,6 +1118,54 @@
     }
 
     /* ==========================================================================
+       10. ATMOSPHERIC POLISH (Archival Paper Grain + Chameleon Sticky Header)
+       ========================================================================== */
+    function initAtmosphericPolish() {
+        // #4: Subtle Archival Paper Grain + Ambient Desk-Light Overlay
+        const atmosphere = document.createElement('div');
+        atmosphere.className = 'paper-atmosphere';
+        atmosphere.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(atmosphere);
+
+        if (!prefersReducedMotion) {
+            window.addEventListener('pointermove', (e) => {
+                const xPct = ((e.clientX / window.innerWidth) * 100).toFixed(1);
+                const yPct = ((e.clientY / window.innerHeight) * 100).toFixed(1);
+                atmosphere.style.setProperty('--light-x', `${xPct}%`);
+                atmosphere.style.setProperty('--light-y', `${yPct}%`);
+            }, { passive: true });
+        }
+
+        // #7: Chameleon Dark / Light Sticky Header over Dark Sections (.toolkit, #experience, #contact)
+        const header = document.querySelector('.site-header');
+        const darkSections = Array.from(document.querySelectorAll('.toolkit, .field-record, .footer'));
+        if (!header || darkSections.length === 0) return;
+
+        let ticking = false;
+        function updateHeaderTheme() {
+            ticking = false;
+            const headerRect = header.getBoundingClientRect();
+            const probeY = headerRect.top + headerRect.height * 0.55;
+
+            const overDark = darkSections.some((sec) => {
+                const r = sec.getBoundingClientRect();
+                return r.top <= probeY && r.bottom >= probeY;
+            });
+
+            header.classList.toggle('is-dark-surface', overDark);
+        }
+
+        updateHeaderTheme();
+        window.addEventListener('scroll', () => {
+            if (!ticking) {
+                ticking = true;
+                requestAnimationFrame(updateHeaderTheme);
+            }
+        }, { passive: true });
+        window.addEventListener('resize', updateHeaderTheme, { passive: true });
+    }
+
+    /* ==========================================================================
        INITIALIZE ALL MODULES ON DOM READY
        ========================================================================== */
     function init() {
@@ -1130,6 +1178,7 @@
         initCommandPalette();
         initLenisAndVelocitySkew();
         initTactileMicroInteractions();
+        initAtmosphericPolish();
     }
 
     if (document.readyState === 'loading') {
