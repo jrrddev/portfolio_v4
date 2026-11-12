@@ -622,7 +622,12 @@
 
         const filterBtns = Array.from(controls.querySelectorAll('.filter-btn'));
 
-        function applyFilter(tag) {
+        // Assign unique view-transition-name to each project card for smooth View Transitions morphing
+        projects.forEach((card, idx) => {
+            card.style.viewTransitionName = `project-card-${idx}`;
+        });
+
+        function updateFilterDOM(tag) {
             filterBtns.forEach((btn) => {
                 btn.classList.toggle('is-active', btn.dataset.filter === tag);
             });
@@ -636,6 +641,14 @@
                     li.classList.toggle('is-highlighted', tag !== 'all' && li.textContent.toLowerCase().includes(tag.toLowerCase()));
                 });
             });
+        }
+
+        function applyFilter(tag) {
+            if (typeof document.startViewTransition === 'function' && !prefersReducedMotion) {
+                document.startViewTransition(() => updateFilterDOM(tag));
+            } else {
+                updateFilterDOM(tag);
+            }
         }
 
         filterBtns.forEach((btn) => {
@@ -704,6 +717,33 @@
                 zoomBtn.textContent = 'Zoom +';
             });
         });
+
+        // #6: Native View Transitions on Certificate Modal open/close triggers
+        if (typeof document.startViewTransition === 'function' && !prefersReducedMotion) {
+            document.querySelectorAll('[popovertarget^="certificate-"]').forEach((btn) => {
+                btn.addEventListener('click', (e) => {
+                    const targetId = btn.getAttribute('popovertarget');
+                    const viewer = targetId ? document.getElementById(targetId) : null;
+                    if (!viewer) return;
+
+                    e.preventDefault();
+                    const action = btn.getAttribute('popovertargetaction') || 'toggle';
+                    const isOpen = viewer.matches(':popover-open');
+
+                    viewer.style.viewTransitionName = 'cert-modal';
+                    const transition = document.startViewTransition(() => {
+                        if (action === 'hide' || isOpen) {
+                            viewer.hidePopover();
+                        } else {
+                            viewer.showPopover();
+                        }
+                    });
+                    transition.finished.finally(() => {
+                        viewer.style.viewTransitionName = '';
+                    });
+                });
+            });
+        }
     }
 
     /* ==========================================================================
@@ -967,6 +1007,117 @@
     }
 
     /* ==========================================================================
+       9. TACTILE MICRO-INTERACTIONS (Magnetic Buttons/Links & Drafting Cursor)
+       ========================================================================== */
+    function initTactileMicroInteractions() {
+        if (prefersReducedMotion) return;
+
+        // 1. Elastic Magnetic Pull on Interactive Buttons & Links
+        const magneticSelectors = [
+            '.button',
+            '.header-contact',
+            '.brand',
+            '.cmd-trigger',
+            '.filter-btn',
+            '.project-link',
+            '.text-link',
+            '.record-link',
+            '.certificate-close',
+            '.cert-zoom-btn',
+            '.socials a',
+            '.colophon a[href="#top"]'
+        ].join(', ');
+
+        const magneticElements = document.querySelectorAll(magneticSelectors);
+        magneticElements.forEach((el) => {
+            el.classList.add('is-magnetic');
+            const childSpan = el.querySelector('span[aria-hidden="true"]');
+
+            el.addEventListener('pointerenter', () => {
+                el.classList.add('is-pulling');
+            });
+
+            el.addEventListener('pointermove', (e) => {
+                const rect = el.getBoundingClientRect();
+                const cx = rect.left + rect.width * 0.5;
+                const cy = rect.top + rect.height * 0.5;
+                const dx = (e.clientX - cx) * 0.24;
+                const dy = (e.clientY - cy) * 0.32;
+
+                const maxPullX = Math.min(8, rect.width * 0.12);
+                const maxPullY = Math.min(6, rect.height * 0.22);
+                const pullX = Math.max(-maxPullX, Math.min(maxPullX, dx));
+                const pullY = Math.max(-maxPullY, Math.min(maxPullY, dy));
+
+                el.style.transform = `translate3d(${pullX.toFixed(2)}px, ${pullY.toFixed(2)}px, 0)`;
+                if (childSpan) {
+                    childSpan.style.transform = `translate3d(${(pullX * 0.45).toFixed(2)}px, ${(pullY * 0.45).toFixed(2)}px, 0)`;
+                }
+            });
+
+            el.addEventListener('pointerleave', () => {
+                el.classList.remove('is-pulling');
+                el.style.transform = '';
+                if (childSpan) {
+                    childSpan.style.transform = '';
+                }
+            });
+        });
+
+        // 2. Precision Drafting Crosshair Cursor Follower (Desktop Fine Pointer)
+        if (window.matchMedia('(pointer: fine)').matches) {
+            const cursor = document.createElement('div');
+            cursor.className = 'drafting-cursor';
+            cursor.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(cursor);
+
+            let mouseX = -100;
+            let mouseY = -100;
+            let curX = -100;
+            let curY = -100;
+            let active = false;
+
+            const interactiveHoverSelector = 'a, button, summary, input, .tags li, .compass';
+
+            window.addEventListener('pointermove', (e) => {
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+                if (!active) {
+                    active = true;
+                    curX = mouseX;
+                    curY = mouseY;
+                    cursor.classList.add('is-active');
+                }
+                const isHover = Boolean(e.target && e.target.closest && e.target.closest(interactiveHoverSelector));
+                cursor.classList.toggle('is-hovering', isHover);
+            }, { passive: true });
+
+            window.addEventListener('pointerdown', () => {
+                cursor.classList.add('is-pressed');
+            }, { passive: true });
+
+            window.addEventListener('pointerup', () => {
+                cursor.classList.remove('is-pressed');
+            }, { passive: true });
+
+            document.addEventListener('mouseleave', () => {
+                cursor.classList.remove('is-active');
+                active = false;
+            });
+
+            function updateCursor() {
+                if (active) {
+                    curX += (mouseX - curX) * 0.22;
+                    curY += (mouseY - curY) * 0.22;
+                    cursor.style.transform = `translate3d(${curX.toFixed(2)}px, ${curY.toFixed(2)}px, 0)`;
+                }
+                requestAnimationFrame(updateCursor);
+            }
+            requestAnimationFrame(updateCursor);
+        }
+    }
+
+    /* ==========================================================================
        INITIALIZE ALL MODULES ON DOM READY
        ========================================================================== */
     function init() {
@@ -978,6 +1129,7 @@
         initCertificateZoom();
         initCommandPalette();
         initLenisAndVelocitySkew();
+        initTactileMicroInteractions();
     }
 
     if (document.readyState === 'loading') {

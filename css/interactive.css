@@ -536,6 +536,143 @@ html.lenis body {
     will-change: transform;
 }
 
+/* ==========================================================================
+   #5: Tactile Micro-Interactions (Magnetic Elements & Drafting Crosshair)
+   ========================================================================== */
+.is-magnetic {
+    will-change: transform;
+    transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.is-magnetic.is-pulling {
+    transition: transform 0.08s linear, background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.is-magnetic > span {
+    display: inline-block;
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Precision Drafting Crosshair Cursor Follower (Desktop Fine Pointer Only) */
+.drafting-cursor {
+    display: none;
+}
+
+@media (pointer: fine) {
+    .drafting-cursor {
+        display: block;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 26px;
+        height: 26px;
+        margin-left: -13px;
+        margin-top: -13px;
+        border: 1px solid rgba(25, 60, 50, 0.48);
+        border-radius: 50%;
+        pointer-events: none;
+        z-index: 120;
+        opacity: 0;
+        will-change: transform, width, height;
+        transition: width 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+                    height 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+                    margin 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+                    border-color 0.2s ease,
+                    background-color 0.2s ease,
+                    border-radius 0.22s ease,
+                    opacity 0.2s ease;
+    }
+
+    .drafting-cursor.is-active {
+        opacity: 1;
+    }
+
+    .drafting-cursor::before,
+    .drafting-cursor::after {
+        content: "";
+        position: absolute;
+        background: var(--orange);
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        transition: width 0.2s ease, height 0.2s ease, background-color 0.2s ease;
+    }
+
+    .drafting-cursor::before {
+        width: 5px;
+        height: 1px;
+    }
+
+    .drafting-cursor::after {
+        width: 1px;
+        height: 5px;
+    }
+
+    .drafting-cursor.is-hovering {
+        width: 40px;
+        height: 40px;
+        margin-left: -20px;
+        margin-top: -20px;
+        border-color: var(--orange);
+        background-color: rgba(255, 113, 60, 0.08);
+    }
+
+    .drafting-cursor.is-hovering::before {
+        width: 9px;
+    }
+
+    .drafting-cursor.is-hovering::after {
+        height: 9px;
+    }
+
+    .drafting-cursor.is-pressed {
+        transform: scale(0.84);
+    }
+}
+
+/* ==========================================================================
+   #6: Native View Transitions API (Project Filters & Certificate Modals)
+   ========================================================================== */
+::view-transition-group(*) {
+    animation-duration: 0.38s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+::view-transition-old(cert-modal) {
+    animation: cert-modal-out 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+::view-transition-new(cert-modal) {
+    animation: cert-modal-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes cert-modal-in {
+    from {
+        opacity: 0;
+        transform: scale(0.94) translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+@keyframes cert-modal-out {
+    from {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: scale(0.95) translateY(8px);
+    }
+}
+
+/* Smooth CSS entry transition fallback for certificate popovers */
+.certificate-viewer:popover-open {
+    animation: cert-modal-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 @media (max-width: 47rem) {
     .header-actions {
         grid-column: 2;
