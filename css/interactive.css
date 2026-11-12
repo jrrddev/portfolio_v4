@@ -182,12 +182,7 @@
     transform: translateY(-2px);
 }
 
-.toolkit-marquee {
-    flex: 1;
-    min-width: 0;
-}
-
-.toolkit-clone {
+.toolkit li.toolkit-clone {
     display: none;
 }
 
@@ -200,6 +195,7 @@
         flex-direction: row;
         align-items: center;
         gap: 1rem;
+        overflow: hidden;
     }
 
     .toolkit h2 {
@@ -209,29 +205,25 @@
         position: relative;
         z-index: 2;
         background: var(--ink);
-    }
-
-    .toolkit-marquee {
-        overflow: hidden;
-        mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
-        -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+        box-shadow: -5rem 0 0 1rem var(--ink);
     }
 
     .toolkit ul {
         flex-wrap: nowrap;
         justify-content: flex-start;
         width: max-content;
+        flex: 0 0 auto;
         gap: 0;
         animation: toolkit-marquee-ltr 16s linear infinite;
     }
 
-    .toolkit ul li {
+    .toolkit li {
         white-space: nowrap;
         flex-shrink: 0;
         padding-right: 1.5rem;
     }
 
-    .toolkit .toolkit-clone {
+    .toolkit li.toolkit-clone {
         display: inline-flex;
     }
 }
