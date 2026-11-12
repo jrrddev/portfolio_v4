@@ -867,10 +867,57 @@
         let lastScrollY = window.scrollY;
         let lastTime = performance.now();
         let rawVelocity = 0;
-        let smoothSkew = 0;
-        let smoothStretch = 1;
 
-        // Track native scroll velocity as immediate baseline before/without Lenis
+        // Spring physics state for typography skew & optical stretch
+        let currentSkew = 0;
+        let skewVelocity = 0;
+        let currentShear = 0;
+        let currentStretch = 1;
+
+        function setupLenis(LenisCtor) {
+            if (!LenisCtor || lenisInstance) return;
+
+            root.classList.add('lenis', 'lenis-smooth');
+            lenisInstance = new LenisCtor({
+                lerp: 0.088,
+                smoothWheel: true,
+                wheelMultiplier: 1.0,
+                touchMultiplier: 1.5
+            });
+
+            // Prevent Lenis from hijacking scroll inside scrollable popovers/command list
+            document.querySelectorAll('.cert-stage, .cmd-list').forEach((el) => {
+                el.setAttribute('data-lenis-prevent', '');
+            });
+
+            // Intercept internal anchor links for silky Lenis scrollTo transitions
+            document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
+                anchor.addEventListener('click', (e) => {
+                    const href = anchor.getAttribute('href');
+                    if (!href || href === '#') return;
+                    const target = href === '#top' ? 0 : document.querySelector(href);
+                    if (target !== null) {
+                        e.preventDefault();
+                        lenisInstance.scrollTo(target, {
+                            offset: href === '#top' ? 0 : -74,
+                            duration: 1.15
+                        });
+                        history.pushState(null, '', href);
+                    }
+                });
+            });
+        }
+
+        // Initialize immediately if UMD script loaded, otherwise fallback to ESM import
+        if (typeof window.Lenis === 'function') {
+            setupLenis(window.Lenis);
+        } else {
+            import('https://cdn.jsdelivr.net/npm/lenis@1.1.20/+esm')
+                .then((mod) => setupLenis(mod.default || mod.Lenis))
+                .catch(() => {});
+        }
+
+        // Track native scroll velocity as fallback if offline
         window.addEventListener('scroll', () => {
             if (lenisInstance) return;
             const now = performance.now();
@@ -887,64 +934,36 @@
                 lenisInstance.raf(time);
                 rawVelocity = lenisInstance.velocity || 0;
             } else {
-                rawVelocity *= 0.85;
+                rawVelocity *= 0.86;
             }
 
-            // Clamp skew to a tasteful editorial range (-2.2deg to +2.2deg)
-            const targetSkew = Math.max(-2.2, Math.min(2.2, rawVelocity * 0.065));
-            const targetStretch = 1 + Math.min(0.035, Math.abs(rawVelocity) * 0.00075);
+            // Target skew (-4.2deg to +4.2deg) & vertical optical stretch
+            const targetSkew = Math.max(-4.2, Math.min(4.2, rawVelocity * 0.12));
+            const targetShear = Math.max(-1.8, Math.min(1.8, -rawVelocity * 0.05));
+            const targetStretch = 1 + Math.min(0.055, Math.abs(rawVelocity) * 0.0014);
 
-            smoothSkew += (targetSkew - smoothSkew) * 0.14;
-            smoothStretch += (targetStretch - smoothStretch) * 0.14;
+            // Spring physics with subtle elastic rebound for skew
+            const force = (targetSkew - currentSkew) * 0.16;
+            skewVelocity = (skewVelocity + force) * 0.76;
+            currentSkew += skewVelocity;
 
-            if (Math.abs(smoothSkew) < 0.005) smoothSkew = 0;
-            if (Math.abs(smoothStretch - 1) < 0.0005) smoothStretch = 1;
+            currentShear += (targetShear - currentShear) * 0.15;
+            currentStretch += (targetStretch - currentStretch) * 0.15;
 
-            root.style.setProperty('--scroll-skew', `${smoothSkew.toFixed(3)}deg`);
-            root.style.setProperty('--scroll-stretch', smoothStretch.toFixed(4));
+            if (Math.abs(currentSkew) < 0.004 && Math.abs(skewVelocity) < 0.004) {
+                currentSkew = 0;
+                skewVelocity = 0;
+            }
+            if (Math.abs(currentShear) < 0.004) currentShear = 0;
+            if (Math.abs(currentStretch - 1) < 0.0004) currentStretch = 1;
+
+            root.style.setProperty('--scroll-skew', `${currentSkew.toFixed(3)}deg`);
+            root.style.setProperty('--scroll-shear', `${currentShear.toFixed(3)}deg`);
+            root.style.setProperty('--scroll-stretch', currentStretch.toFixed(4));
 
             requestAnimationFrame(rafLoop);
         }
         requestAnimationFrame(rafLoop);
-
-        // Dynamically load Lenis via ESM CDN
-        import('https://cdn.jsdelivr.net/npm/lenis@1.1.20/+esm')
-            .then((mod) => {
-                const Lenis = mod.default || mod.Lenis;
-                if (!Lenis) return;
-
-                lenisInstance = new Lenis({
-                    lerp: 0.095,
-                    smoothWheel: true,
-                    wheelMultiplier: 0.95,
-                    touchMultiplier: 1.5
-                });
-
-                // Prevent Lenis from hijacking scroll inside scrollable popovers/command list
-                document.querySelectorAll('.cert-stage, .cmd-list').forEach((el) => {
-                    el.setAttribute('data-lenis-prevent', '');
-                });
-
-                // Intercept internal anchor links for silky Lenis scrollTo transitions
-                document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
-                    anchor.addEventListener('click', (e) => {
-                        const href = anchor.getAttribute('href');
-                        if (!href || href === '#') return;
-                        const target = href === '#top' ? 0 : document.querySelector(href);
-                        if (target !== null) {
-                            e.preventDefault();
-                            lenisInstance.scrollTo(target, {
-                                offset: href === '#top' ? 0 : -74,
-                                duration: 1.15
-                            });
-                            history.pushState(null, '', href);
-                        }
-                    });
-                });
-            })
-            .catch(() => {
-                // Offline fallback: native smooth scroll + velocity skew loop continues seamlessly
-            });
     }
 
     /* ==========================================================================

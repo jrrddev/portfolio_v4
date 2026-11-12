@@ -524,10 +524,14 @@ html.lenis body {
 
 .hero h1,
 .section-title,
+.project h3,
 .field-record__hours strong,
-.study-score {
-    display: inline-block;
-    transform: skewY(var(--scroll-skew, 0deg)) scaleY(var(--scroll-stretch, 1));
+.field-record__entry h3,
+.research-copy h3,
+.study-score,
+.training-record__title,
+.training-record__date strong {
+    transform: skewY(var(--scroll-skew, 0deg)) skewX(var(--scroll-shear, 0deg)) scaleY(var(--scroll-stretch, 1));
     transform-origin: left center;
     will-change: transform;
 }
@@ -556,8 +560,13 @@ html.lenis body {
     }
     .hero h1,
     .section-title,
+    .project h3,
     .field-record__hours strong,
-    .study-score {
+    .field-record__entry h3,
+    .research-copy h3,
+    .study-score,
+    .training-record__title,
+    .training-record__date strong {
         transform: none !important;
     }
 }
