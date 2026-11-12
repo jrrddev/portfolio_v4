@@ -1128,9 +1128,63 @@
             requestAnimationFrame(updateCursor);
         }
 
-        // 3. Cartographic Survey Sonar Tap / Click Ripple
+        // 3. Cartographic Survey Sonar Tap / Click Ripple + Tactile Audio Synthesis
+        let audioCtx = null;
+        function playTapSound(isInteractive) {
+            try {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) return;
+                if (!audioCtx) {
+                    audioCtx = new AudioContextClass();
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+
+                const now = audioCtx.currentTime;
+                // Loud, punchy dual-oscillator click/blip for clear speaker output
+                const osc = audioCtx.createOscillator();
+                const subOsc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'square';
+                subOsc.type = 'triangle';
+
+                const startFreq = isInteractive ? 920 : 640;
+                const endFreq = isInteractive ? 260 : 180;
+                const duration = isInteractive ? 0.085 : 0.07;
+                const peakGain = isInteractive ? 0.9 : 0.65;
+
+                osc.frequency.setValueAtTime(startFreq, now);
+                osc.frequency.exponentialRampToValueAtTime(endFreq, now + duration);
+
+                subOsc.frequency.setValueAtTime(startFreq * 0.5, now);
+                subOsc.frequency.exponentialRampToValueAtTime(endFreq * 0.5, now + duration);
+
+                gain.gain.setValueAtTime(peakGain, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+                osc.connect(gain);
+                subOsc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(now);
+                subOsc.start(now);
+                osc.stop(now + duration);
+                subOsc.stop(now + duration);
+            } catch (_) {
+                // Ignore if audio is blocked by browser autoplay policy
+            }
+        }
+
+        const tapInteractiveSelector = 'a, button, summary, input, .tags li, .compass, .portrait-plate';
+
         window.addEventListener('pointerdown', (e) => {
             if (e.button !== undefined && e.button !== 0) return;
+
+            const isInteractive = Boolean(e.target && e.target.closest && e.target.closest(tapInteractiveSelector));
+            playTapSound(isInteractive);
+
             const ripple = document.createElement('span');
             ripple.className = 'tap-ripple';
             ripple.setAttribute('aria-hidden', 'true');
