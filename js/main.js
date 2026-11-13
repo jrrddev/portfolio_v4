@@ -1477,17 +1477,18 @@
         atmosphere.setAttribute('aria-hidden', 'true');
         document.body.appendChild(atmosphere);
 
-        const deskLight = document.createElement('div');
-        deskLight.className = 'paper-atmosphere-light';
-        deskLight.setAttribute('aria-hidden', 'true');
-        document.body.appendChild(deskLight);
+        if (!prefersReducedMotion && window.matchMedia('(pointer: fine)').matches) {
+            const deskLight = document.createElement('div');
+            deskLight.className = 'paper-atmosphere-light';
+            deskLight.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(deskLight);
 
-        if (!prefersReducedMotion) {
             let lightX = window.innerWidth * 0.5;
             let lightY = window.innerHeight * 0.28;
             let lightRafId = 0;
 
             window.addEventListener('pointermove', (e) => {
+                if (e.pointerType && e.pointerType !== 'mouse') return;
                 lightX = e.clientX;
                 lightY = e.clientY;
                 if (!lightRafId) {

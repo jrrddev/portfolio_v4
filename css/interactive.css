@@ -838,6 +838,12 @@ summary,
     will-change: transform;
 }
 
+@media (hover: none), (pointer: coarse) {
+    .paper-atmosphere-light {
+        display: none;
+    }
+}
+
 /* ==========================================================================
    #7: Chameleon Dark / Light Sticky Header Transition
    ========================================================================== */
@@ -941,9 +947,12 @@ summary,
 }
 
 /* Adaptive Low-Power / Battery-Constrained Mode (auto-enabled on sustained frame drops or battery saver) */
-html.is-low-power .paper-atmosphere,
-html.is-low-power .paper-atmosphere-light {
+html.is-low-power .paper-atmosphere {
     mix-blend-mode: normal;
+}
+
+html.is-low-power .paper-atmosphere-light {
+    display: none;
 }
 
 html.is-low-power .plate-coords {
