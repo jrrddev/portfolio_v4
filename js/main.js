@@ -1361,7 +1361,7 @@
                     active = true;
                     curX = mouseX;
                     curY = mouseY;
-                    cursor.style.transform = `translate3d(${curX.toFixed(2)}px, ${curY.toFixed(2)}px, 0)`;
+                    cursor.style.translate = `${curX.toFixed(2)}px ${curY.toFixed(2)}px`;
                     cursor.classList.add('is-active');
                 }
                 const isHover = Boolean(e.target && e.target.closest && e.target.closest(interactiveHoverSelector));
@@ -1387,7 +1387,7 @@
                 if (!active || perfState.hidden) return;
                 curX += (mouseX - curX) * 0.22;
                 curY += (mouseY - curY) * 0.22;
-                cursor.style.transform = `translate3d(${curX.toFixed(2)}px, ${curY.toFixed(2)}px, 0)`;
+                cursor.style.translate = `${curX.toFixed(2)}px ${curY.toFixed(2)}px`;
 
                 if (Math.abs(mouseX - curX) > 0.1 || Math.abs(mouseY - curY) > 0.1) {
                     cursorRafId = requestAnimationFrame(updateCursor);
