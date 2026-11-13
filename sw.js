@@ -1,15 +1,15 @@
 /**
  * Service Worker — Offline-First & Instant Asset Cache for Jared Verana Portfolio
  */
-const CACHE_VERSION = 'jrrd-portfolio-v1';
+const CACHE_VERSION = 'jrrd-portfolio-v2';
 
 const PRECACHE_ASSETS = [
     './',
     './index.html',
     './css/style.css',
     './css/records.css',
-    './css/interactive.css',
-    './js/main.js',
+    './css/interactive.css?v=2',
+    './js/main.js?v=2',
     './fonts/barlow-condensed-700.woff2',
     './fonts/barlow-condensed-800.woff2',
     './fonts/dm-sans-variable.woff2',
@@ -46,10 +46,15 @@ self.addEventListener('fetch', (event) => {
     const url = new URL(request.url);
     if (url.origin !== self.location.origin) return;
 
-    // Network-first for HTML navigation so site updates appear immediately
-    if (request.mode === 'navigate' || (request.headers.get('accept') || '').includes('text/html')) {
+    // Network-first for HTML, CSS, and JS so code/design updates show up immediately on every push
+    if (
+        request.mode === 'navigate' ||
+        (request.headers.get('accept') || '').includes('text/html') ||
+        url.pathname.startsWith('/css/') ||
+        url.pathname.startsWith('/js/')
+    ) {
         event.respondWith(
-            fetch(request)
+            fetch(request, { cache: 'no-cache' })
                 .then((response) => {
                     if (response && response.ok) {
                         const copy = response.clone();
@@ -62,7 +67,7 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Stale-while-revalidate for static assets (images, fonts, CSS, JS)
+    // Stale-while-revalidate for images and fonts (0ms cached loads)
     event.respondWith(
         caches.match(request).then((cached) => {
             const networkFetch = fetch(request)
