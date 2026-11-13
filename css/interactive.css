@@ -955,3 +955,21 @@ html.is-low-power .cmd-palette-backdrop {
     backdrop-filter: none;
 }
 
+/* Smooth Image Placeholder & Decode Reveal */
+.browser-frame img,
+.portrait-print img,
+.certificate-viewer img {
+    background-color: #e3e6dc;
+    transition: opacity 0.25s ease;
+}
+
+.browser-frame img.is-decoding,
+.certificate-viewer img.is-decoding {
+    opacity: 0.01;
+}
+
+.browser-frame img.is-loaded,
+.certificate-viewer img.is-loaded {
+    opacity: 1;
+}
+

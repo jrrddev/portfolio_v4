@@ -1529,6 +1529,86 @@
     }
 
     /* ==========================================================================
+       11. IMAGE PREFETCHING, DECODE REVEAL & SERVICE WORKER CACHING
+       ========================================================================== */
+    function initImageCachingAndPrefetch() {
+        // Smooth decode reveal for project and certificate images that aren't cached yet
+        document.querySelectorAll('.browser-frame img, .certificate-viewer img').forEach((img) => {
+            if (img.complete && img.naturalWidth > 0) {
+                img.classList.add('is-loaded');
+                return;
+            }
+            img.classList.add('is-decoding');
+            const markLoaded = () => {
+                img.classList.remove('is-decoding');
+                img.classList.add('is-loaded');
+            };
+            if (typeof img.decode === 'function') {
+                img.decode().then(markLoaded).catch(() => {
+                    img.addEventListener('load', markLoaded, { once: true });
+                    img.addEventListener('error', markLoaded, { once: true });
+                });
+            } else {
+                img.addEventListener('load', markLoaded, { once: true });
+                img.addEventListener('error', markLoaded, { once: true });
+            }
+        });
+
+        const prefetchedUrls = new Set();
+        function prefetchImage(src) {
+            if (!src || prefetchedUrls.has(src)) return;
+            prefetchedUrls.add(src);
+            const preImg = new Image();
+            preImg.decoding = 'async';
+            preImg.src = src;
+        }
+
+        // Pre-warm certificate image immediately on hover/focus of its trigger button
+        document.querySelectorAll('[popovertarget^="certificate-"]').forEach((btn) => {
+            const targetId = btn.getAttribute('popovertarget');
+            const viewer = targetId ? document.getElementById(targetId) : null;
+            const img = viewer ? viewer.querySelector('img') : null;
+            if (!img) return;
+            const src = img.getAttribute('src');
+            const warm = () => {
+                img.loading = 'eager';
+                prefetchImage(src);
+            };
+            btn.addEventListener('pointerenter', warm, { once: true, passive: true });
+            btn.addEventListener('focus', warm, { once: true, passive: true });
+        });
+
+        // Idle background prefetch for certificate popovers (skipped on Data Saver)
+        const scheduleIdlePrefetch = () => {
+            if (navigator.connection && navigator.connection.saveData) return;
+            const run = () => {
+                document.querySelectorAll('.certificate-viewer img').forEach((img) => {
+                    img.loading = 'eager';
+                    prefetchImage(img.getAttribute('src'));
+                });
+            };
+            if (typeof window.requestIdleCallback === 'function') {
+                window.requestIdleCallback(run, { timeout: 2500 });
+            } else {
+                setTimeout(run, 1200);
+            }
+        };
+
+        if (document.readyState === 'complete') {
+            scheduleIdlePrefetch();
+        } else {
+            window.addEventListener('load', scheduleIdlePrefetch, { once: true });
+        }
+
+        // Register Service Worker for instant repeat-visit & offline asset caching
+        if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').catch(() => {});
+            }, { once: true });
+        }
+    }
+
+    /* ==========================================================================
        INITIALIZE ALL MODULES ON DOM READY
        ========================================================================== */
     function init() {
@@ -1542,6 +1622,7 @@
         initLenisAndVelocitySkew();
         initTactileMicroInteractions();
         initAtmosphericPolish();
+        initImageCachingAndPrefetch();
     }
 
     if (document.readyState === 'loading') {
