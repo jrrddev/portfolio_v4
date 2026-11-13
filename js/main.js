@@ -16,6 +16,70 @@
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     /* ==========================================================================
+       0. ADAPTIVE POWER, VISIBILITY & FRAME-TIME MONITOR
+       ========================================================================== */
+    const perfState = {
+        hidden: document.hidden,
+        lowPower: false,
+        visibilityListeners: new Set(),
+        lowPowerListeners: new Set()
+    };
+
+    function enableLowPowerMode() {
+        if (perfState.lowPower) return;
+        perfState.lowPower = true;
+        document.documentElement.classList.add('is-low-power');
+        perfState.lowPowerListeners.forEach((cb) => cb(true));
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        perfState.hidden = document.hidden;
+        perfState.visibilityListeners.forEach((cb) => cb(!perfState.hidden));
+    });
+
+    // Check Battery API (Chromium) to proactively protect battery-throttled laptops
+    if (typeof navigator.getBattery === 'function') {
+        navigator.getBattery().then((battery) => {
+            const checkBattery = () => {
+                if (!battery.charging && battery.level <= 0.35) {
+                    enableLowPowerMode();
+                }
+            };
+            checkBattery();
+            battery.addEventListener('chargingchange', checkBattery);
+            battery.addEventListener('levelchange', checkBattery);
+        }).catch(() => {});
+    }
+
+    // Lightweight frame-time sampler: if sustained frames exceed 26ms (<38fps), engage low-power optimizations
+    if (!prefersReducedMotion) {
+        let slowFrames = 0;
+        let sampleCount = 0;
+        let lastSample = performance.now();
+        function sampleFrameBudget(now) {
+            if (perfState.lowPower) return;
+            const dt = now - lastSample;
+            lastSample = now;
+            if (!perfState.hidden && dt < 150) {
+                sampleCount++;
+                if (dt > 26) slowFrames++;
+                if (sampleCount >= 30) {
+                    if (slowFrames >= 14) {
+                        enableLowPowerMode();
+                        return;
+                    }
+                    sampleCount = 0;
+                    slowFrames = 0;
+                }
+            }
+            if (sampleCount < 180) {
+                requestAnimationFrame(sampleFrameBudget);
+            }
+        }
+        requestAnimationFrame(sampleFrameBudget);
+    }
+
+    /* ==========================================================================
        1. 3D TOPOGRAPHIC TERRAIN ENGINE (Hero Portrait Plate)
        ========================================================================== */
     function initHero3DTopography() {
@@ -49,10 +113,16 @@
             pulseTime: -10
         };
 
+        let plateRect = plate.getBoundingClientRect();
+        const updatePlateRect = () => {
+            plateRect = plate.getBoundingClientRect();
+        };
+        window.addEventListener('resize', updatePlateRect, { passive: true });
+        window.addEventListener('scroll', updatePlateRect, { passive: true });
+
         plate.addEventListener('pointermove', (e) => {
-            const rect = plate.getBoundingClientRect();
-            pointer.normX = (e.clientX - rect.left) / rect.width;
-            pointer.normY = (e.clientY - rect.top) / rect.height;
+            pointer.normX = (e.clientX - plateRect.left) / (plateRect.width || 1);
+            pointer.normY = (e.clientY - plateRect.top) / (plateRect.height || 1);
             pointer.targetX = (pointer.normX - 0.5) * 2;
             pointer.targetY = (pointer.normY - 0.5) * 2;
             pointer.active = true;
@@ -64,7 +134,7 @@
                 const elev = Math.round(48 + Math.sin(pointer.normX * 4) * 18 + Math.cos(pointer.normY * 4) * 12);
                 coordText.textContent = `${lat}° N, ${lon}° E · ELEV ${elev}M`;
             }
-        });
+        }, { passive: true });
 
         plate.addEventListener('pointerleave', () => {
             pointer.targetX = 0;
@@ -82,12 +152,16 @@
 
         // Try upgrading to Three.js WebGL 3D Mesh if available, while running crisp 3D Canvas Engine immediately
         let usingThree = false;
+        let heroVisible = true;
+        let rafId = 0;
+        let lastRenderTime = 0;
         const ctx = canvas.getContext('2d');
         let width = 0;
         let height = 0;
-        let dpr = Math.min(window.devicePixelRatio || 1, 2);
+        let dpr = Math.min(window.devicePixelRatio || 1, perfState.lowPower ? 1 : 1.5);
 
         function resizeCanvas() {
+            dpr = Math.min(window.devicePixelRatio || 1, perfState.lowPower ? 1 : 1.5);
             const rect = topoContainer.getBoundingClientRect();
             width = Math.max(1, rect.width);
             height = Math.max(1, rect.height);
@@ -154,8 +228,45 @@
         }
 
         let animTime = 0;
+        let threeTickFn = null;
+
+        function startActiveTerrainLoop() {
+            if (prefersReducedMotion || !heroVisible || perfState.hidden || rafId) return;
+            rafId = requestAnimationFrame(usingThree && threeTickFn ? threeTickFn : render3DCanvas);
+        }
+
+        function stopActiveTerrainLoop() {
+            if (rafId) {
+                cancelAnimationFrame(rafId);
+                rafId = 0;
+            }
+        }
+
+        const heroObs = new IntersectionObserver((entries) => {
+            heroVisible = entries[0].isIntersecting;
+            if (heroVisible) startActiveTerrainLoop();
+            else stopActiveTerrainLoop();
+        }, { threshold: 0.02 });
+        heroObs.observe(plate);
+
+        perfState.visibilityListeners.add((visible) => {
+            if (visible && heroVisible) startActiveTerrainLoop();
+            else stopActiveTerrainLoop();
+        });
+
+        perfState.lowPowerListeners.add(() => {
+            if (!usingThree) resizeCanvas();
+        });
+
         function render3DCanvas(now) {
-            if (usingThree) return;
+            rafId = 0;
+            if (usingThree || !heroVisible || perfState.hidden) return;
+
+            if (perfState.lowPower && !pointer.active && now - lastRenderTime < 32) {
+                if (!prefersReducedMotion) rafId = requestAnimationFrame(render3DCanvas);
+                return;
+            }
+            lastRenderTime = now;
             animTime = prefersReducedMotion ? 1.2 : now * 0.001;
 
             // Smooth spring interpolation for pointer
@@ -258,12 +369,16 @@
                 ctx.stroke();
             }
 
-            if (!prefersReducedMotion) {
-                requestAnimationFrame(render3DCanvas);
+            if (!prefersReducedMotion && heroVisible && !perfState.hidden) {
+                rafId = requestAnimationFrame(render3DCanvas);
             }
         }
 
-        requestAnimationFrame(render3DCanvas);
+        if (prefersReducedMotion) {
+            render3DCanvas(performance.now());
+        } else {
+            startActiveTerrainLoop();
+        }
 
         // Optional WebGL Three.js Upgrade (loads asynchronously from CDN if online)
         if (!prefersReducedMotion) {
@@ -276,19 +391,24 @@
                     const renderer = new THREE.WebGLRenderer({
                         canvas: webglCanvas,
                         alpha: true,
-                        antialias: true,
-                        powerPreference: 'high-performance'
+                        antialias: !perfState.lowPower,
+                        powerPreference: 'default'
                     });
-                    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+                    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, perfState.lowPower ? 1 : 1.5));
                     renderer.setSize(width, height);
+
+                    perfState.lowPowerListeners.add(() => {
+                        renderer.setPixelRatio(1);
+                        renderer.setSize(width, height);
+                    });
 
                     const scene = new THREE.Scene();
                     const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 1000);
                     camera.position.set(0, 72, 115);
                     camera.lookAt(0, -6, 0);
 
-                    const segX = 44;
-                    const segZ = 36;
+                    const segX = 34;
+                    const segZ = 26;
                     const geom = new THREE.PlaneGeometry(175, 145, segX, segZ);
                     geom.rotateX(-Math.PI * 0.5);
 
@@ -324,6 +444,7 @@
                     scene.add(ptsMesh);
 
                     // Swap in WebGL canvas seamlessly
+                    stopActiveTerrainLoop();
                     topoContainer.replaceChild(webglCanvas, canvas);
                     usingThree = true;
 
@@ -333,6 +454,7 @@
                         height = Math.max(1, rect.height);
                         camera.aspect = width / height;
                         camera.updateProjectionMatrix();
+                        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, perfState.lowPower ? 1 : 1.5));
                         renderer.setSize(width, height);
                     }, { passive: true });
 
@@ -344,6 +466,15 @@
                     }
 
                     function animateThree(now) {
+                        rafId = 0;
+                        if (!heroVisible || perfState.hidden) return;
+
+                        if (perfState.lowPower && !pointer.active && now - lastRenderTime < 32) {
+                            rafId = requestAnimationFrame(animateThree);
+                            return;
+                        }
+                        lastRenderTime = now;
+
                         const t = now * 0.001;
                         pointer.x += (pointer.targetX - pointer.x) * 0.07;
                         pointer.y += (pointer.targetY - pointer.y) * 0.07;
@@ -361,9 +492,12 @@
                         camera.lookAt(pointer.x * 6, -4, pointer.y * 4);
 
                         renderer.render(scene, camera);
-                        requestAnimationFrame(animateThree);
+                        if (heroVisible && !perfState.hidden) {
+                            rafId = requestAnimationFrame(animateThree);
+                        }
                     }
-                    requestAnimationFrame(animateThree);
+                    threeTickFn = animateThree;
+                    startActiveTerrainLoop();
                 })
                 .catch(() => {
                     // Offline or blocked CDN: built-in 3D projection engine continues running smoothly
@@ -398,36 +532,72 @@
         window.addEventListener('resize', resize, { passive: true });
 
         let isVisible = false;
+        let fieldRafId = 0;
+        let lastFieldDraw = 0;
+
+        function startFieldLoop() {
+            if (prefersReducedMotion || !isVisible || perfState.hidden || fieldRafId) return;
+            fieldRafId = requestAnimationFrame(drawFieldWave);
+        }
+
+        function stopFieldLoop() {
+            if (fieldRafId) {
+                cancelAnimationFrame(fieldRafId);
+                fieldRafId = 0;
+            }
+        }
+
         const obs = new IntersectionObserver((entries) => {
             isVisible = entries[0].isIntersecting;
+            if (isVisible) startFieldLoop();
+            else stopFieldLoop();
         }, { threshold: 0.05 });
         obs.observe(section);
 
-        function drawFieldWave(now) {
-            if (isVisible || prefersReducedMotion) {
-                const t = now * 0.0006;
-                ctx.clearRect(0, 0, w, h);
-                ctx.strokeStyle = '#b9d1bf';
-                ctx.lineWidth = 1;
+        perfState.visibilityListeners.add((visible) => {
+            if (visible && isVisible) startFieldLoop();
+            else stopFieldLoop();
+        });
 
-                const lines = 9;
-                for (let l = 0; l < lines; l++) {
-                    const yBase = (h / (lines + 1)) * (l + 1);
-                    ctx.beginPath();
-                    for (let x = 0; x <= w; x += 28) {
-                        const nx = x / w;
-                        const offset = Math.sin(nx * 5 + t + l * 0.55) * 14 + Math.cos(nx * 9 - t * 0.8) * 6;
-                        if (x === 0) ctx.moveTo(x, yBase + offset);
-                        else ctx.lineTo(x, yBase + offset);
-                    }
-                    ctx.stroke();
-                }
+        function drawFieldWave(now) {
+            fieldRafId = 0;
+            if (!isVisible && !prefersReducedMotion) return;
+            if (perfState.hidden && !prefersReducedMotion) return;
+
+            if (perfState.lowPower && !prefersReducedMotion && now - lastFieldDraw < 32) {
+                fieldRafId = requestAnimationFrame(drawFieldWave);
+                return;
             }
-            if (!prefersReducedMotion) {
-                requestAnimationFrame(drawFieldWave);
+            lastFieldDraw = now;
+
+            const t = now * 0.0006;
+            ctx.clearRect(0, 0, w, h);
+            ctx.strokeStyle = '#b9d1bf';
+            ctx.lineWidth = 1;
+
+            const lines = 9;
+            for (let l = 0; l < lines; l++) {
+                const yBase = (h / (lines + 1)) * (l + 1);
+                ctx.beginPath();
+                for (let x = 0; x <= w; x += 28) {
+                    const nx = x / w;
+                    const offset = Math.sin(nx * 5 + t + l * 0.55) * 14 + Math.cos(nx * 9 - t * 0.8) * 6;
+                    if (x === 0) ctx.moveTo(x, yBase + offset);
+                    else ctx.lineTo(x, yBase + offset);
+                }
+                ctx.stroke();
+            }
+
+            if (!prefersReducedMotion && isVisible && !perfState.hidden) {
+                fieldRafId = requestAnimationFrame(drawFieldWave);
             }
         }
-        requestAnimationFrame(drawFieldWave);
+
+        if (prefersReducedMotion) {
+            drawFieldWave(performance.now());
+        } else {
+            startFieldLoop();
+        }
     }
 
     /* ==========================================================================
@@ -450,30 +620,51 @@
         let currentAngle = 12;
         let targetAngle = 12;
         let velocity = 0;
+        let lastNormDeg = 12;
+        let compassRafId = 0;
+        let heroVisible = true;
 
         const cardinals = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
 
-        window.addEventListener('pointermove', (e) => {
-            if (prefersReducedMotion) return;
+        let compassCenter = { x: 0, y: 0 };
+        let plateRect = plate.getBoundingClientRect();
+        function cacheGeometry() {
+            const cRect = compass.getBoundingClientRect();
+            compassCenter.x = cRect.left + cRect.width * 0.5;
+            compassCenter.y = cRect.top + cRect.height * 0.5;
+            plateRect = plate.getBoundingClientRect();
+        }
+        cacheGeometry();
+        window.addEventListener('resize', cacheGeometry, { passive: true });
+        window.addEventListener('scroll', cacheGeometry, { passive: true });
 
-            // Calculate angle from compass center to cursor
-            const rect = compass.getBoundingClientRect();
-            const cx = rect.left + rect.width * 0.5;
-            const cy = rect.top + rect.height * 0.5;
-            const rad = Math.atan2(e.clientY - cy, e.clientX - cx);
+        const compassObs = new IntersectionObserver((entries) => {
+            heroVisible = entries[0].isIntersecting;
+            if (heroVisible) scheduleCompass();
+        }, { threshold: 0.02 });
+        compassObs.observe(plate);
+
+        function scheduleCompass() {
+            if (prefersReducedMotion || !heroVisible || perfState.hidden || compassRafId) return;
+            compassRafId = requestAnimationFrame(updateCompassPhysics);
+        }
+
+        window.addEventListener('pointermove', (e) => {
+            if (prefersReducedMotion || !heroVisible) return;
+            const rad = Math.atan2(e.clientY - compassCenter.y, e.clientX - compassCenter.x);
             targetAngle = (rad * 180) / Math.PI + 90;
+            scheduleCompass();
         }, { passive: true });
 
         // 3D Tilt on Portrait Print when hovering over Portrait Plate
         if (print && !prefersReducedMotion) {
             plate.addEventListener('pointermove', (e) => {
-                const rect = plate.getBoundingClientRect();
-                const nx = (e.clientX - rect.left) / rect.width - 0.5;
-                const ny = (e.clientY - rect.top) / rect.height - 0.5;
+                const nx = (e.clientX - plateRect.left) / (plateRect.width || 1) - 0.5;
+                const ny = (e.clientY - plateRect.top) / (plateRect.height || 1) - 0.5;
                 const rotX = -ny * 11;
                 const rotY = nx * 13;
                 print.style.transform = `rotate(-5deg) rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg) translateZ(14px)`;
-            });
+            }, { passive: true });
 
             plate.addEventListener('pointerleave', () => {
                 print.style.transform = 'rotate(-5deg) rotateX(0deg) rotateY(0deg) translateZ(0px)';
@@ -481,25 +672,27 @@
         }
 
         function updateCompassPhysics() {
+            compassRafId = 0;
+            if (!heroVisible || perfState.hidden) return;
+
             // Shortest angular distance
-            let diff = ((targetAngle - currentAngle + 540) % 360) - 180;
+            const diff = ((targetAngle - currentAngle + 540) % 360) - 180;
             velocity = (velocity + diff * 0.085) * 0.78;
             currentAngle += velocity;
 
             needle.style.transform = `rotate(${currentAngle.toFixed(2)}deg)`;
 
-            // Normalize 0-359 for cardinal readout
+            // Normalize 0-359 for cardinal readout only when integer degree changes
             const normDeg = Math.round(((currentAngle % 360) + 360) % 360);
-            const dirIndex = Math.round(normDeg / 22.5) % 16;
-            bearingBadge.textContent = `${String(normDeg).padStart(3, '0')}° ${cardinals[dirIndex]}`;
-
-            if (!prefersReducedMotion) {
-                requestAnimationFrame(updateCompassPhysics);
+            if (normDeg !== lastNormDeg) {
+                lastNormDeg = normDeg;
+                const dirIndex = Math.round(normDeg / 22.5) % 16;
+                bearingBadge.textContent = `${String(normDeg).padStart(3, '0')}° ${cardinals[dirIndex]}`;
             }
-        }
 
-        if (!prefersReducedMotion) {
-            requestAnimationFrame(updateCompassPhysics);
+            if (!prefersReducedMotion && (Math.abs(diff) > 0.04 || Math.abs(velocity) > 0.04)) {
+                compassRafId = requestAnimationFrame(updateCompassPhysics);
+            }
         }
     }
 
@@ -515,10 +708,24 @@
             prog.setAttribute('aria-hidden', 'true');
             header.appendChild(prog);
 
+            let maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+            const updateMaxScroll = () => {
+                maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+            };
+            window.addEventListener('resize', updateMaxScroll, { passive: true });
+            if (typeof ResizeObserver === 'function') {
+                new ResizeObserver(updateMaxScroll).observe(document.documentElement);
+            }
+
+            let progTicking = false;
             window.addEventListener('scroll', () => {
-                const max = document.documentElement.scrollHeight - window.innerHeight;
-                const ratio = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
-                prog.style.transform = `scaleX(${ratio.toFixed(4)})`;
+                if (progTicking) return;
+                progTicking = true;
+                requestAnimationFrame(() => {
+                    progTicking = false;
+                    const ratio = Math.min(1, Math.max(0, window.scrollY / maxScroll));
+                    prog.style.transform = `scaleX(${ratio.toFixed(4)})`;
+                });
             }, { passive: true });
         }
 
@@ -926,6 +1133,20 @@
         let currentShear = 0;
         let currentStretch = 1;
 
+        let lastWrittenSkew = '0.000deg';
+        let lastWrittenShear = '0.000deg';
+        let lastWrittenStretch = '1.0000';
+        let scrollRafId = 0;
+        let scrollActiveUntil = 0;
+
+        function wakeScrollLoop(durationMs = 450) {
+            scrollActiveUntil = Math.max(scrollActiveUntil, performance.now() + durationMs);
+            if (!scrollRafId && !perfState.hidden) {
+                root.classList.add('is-scrolling');
+                scrollRafId = requestAnimationFrame(rafLoop);
+            }
+        }
+
         function setupLenis(LenisCtor) {
             if (!LenisCtor || lenisInstance) return;
 
@@ -950,6 +1171,7 @@
                     const target = href === '#top' ? 0 : document.querySelector(href);
                     if (target !== null) {
                         e.preventDefault();
+                        wakeScrollLoop(1350);
                         lenisInstance.scrollTo(target, {
                             offset: href === '#top' ? 0 : -74,
                             duration: 1.15
@@ -969,8 +1191,19 @@
                 .catch(() => {});
         }
 
+        // Wake loop on user scroll/wheel/touch/key input
+        window.addEventListener('wheel', () => wakeScrollLoop(600), { passive: true });
+        window.addEventListener('touchstart', () => wakeScrollLoop(600), { passive: true });
+        window.addEventListener('touchmove', () => wakeScrollLoop(600), { passive: true });
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'PageDown' || e.key === 'PageUp' || e.key === ' ' || e.key === 'Home' || e.key === 'End') {
+                wakeScrollLoop(600);
+            }
+        }, { passive: true });
+
         // Track native scroll velocity as fallback if offline
         window.addEventListener('scroll', () => {
+            wakeScrollLoop(450);
             if (lenisInstance) return;
             const now = performance.now();
             const dt = Math.max(8, now - lastTime);
@@ -980,8 +1213,11 @@
             lastTime = now;
         }, { passive: true });
 
-        // Spring-damped RAF loop for Scroll-Velocity Typography Skew & Lenis tick
+        // Spring-damped RAF loop for Scroll-Velocity Typography Skew & Lenis tick (sleeps when settled)
         function rafLoop(time) {
+            scrollRafId = 0;
+            if (perfState.hidden) return;
+
             if (lenisInstance) {
                 lenisInstance.raf(time);
                 rawVelocity = lenisInstance.velocity || 0;
@@ -1009,13 +1245,30 @@
             if (Math.abs(currentShear) < 0.004) currentShear = 0;
             if (Math.abs(currentStretch - 1) < 0.0004) currentStretch = 1;
 
-            root.style.setProperty('--scroll-skew', `${currentSkew.toFixed(3)}deg`);
-            root.style.setProperty('--scroll-shear', `${currentShear.toFixed(3)}deg`);
-            root.style.setProperty('--scroll-stretch', currentStretch.toFixed(4));
+            const nextSkew = `${currentSkew.toFixed(3)}deg`;
+            const nextShear = `${currentShear.toFixed(3)}deg`;
+            const nextStretch = currentStretch.toFixed(4);
 
-            requestAnimationFrame(rafLoop);
+            if (nextSkew !== lastWrittenSkew) {
+                lastWrittenSkew = nextSkew;
+                root.style.setProperty('--scroll-skew', nextSkew);
+            }
+            if (nextShear !== lastWrittenShear) {
+                lastWrittenShear = nextShear;
+                root.style.setProperty('--scroll-shear', nextShear);
+            }
+            if (nextStretch !== lastWrittenStretch) {
+                lastWrittenStretch = nextStretch;
+                root.style.setProperty('--scroll-stretch', nextStretch);
+            }
+
+            const isMoving = Math.abs(rawVelocity) > 0.02 || currentSkew !== 0 || currentShear !== 0 || currentStretch !== 1 || time < scrollActiveUntil;
+            if (isMoving) {
+                scrollRafId = requestAnimationFrame(rafLoop);
+            } else {
+                root.classList.remove('is-scrolling');
+            }
         }
-        requestAnimationFrame(rafLoop);
     }
 
     /* ==========================================================================
@@ -1044,20 +1297,22 @@
         magneticElements.forEach((el) => {
             el.classList.add('is-magnetic');
             const childSpan = el.querySelector('span[aria-hidden="true"]');
+            let elRect = null;
 
             el.addEventListener('pointerenter', () => {
                 el.classList.add('is-pulling');
+                elRect = el.getBoundingClientRect();
             });
 
             el.addEventListener('pointermove', (e) => {
-                const rect = el.getBoundingClientRect();
-                const cx = rect.left + rect.width * 0.5;
-                const cy = rect.top + rect.height * 0.5;
+                if (!elRect) elRect = el.getBoundingClientRect();
+                const cx = elRect.left + elRect.width * 0.5;
+                const cy = elRect.top + elRect.height * 0.5;
                 const dx = (e.clientX - cx) * 0.24;
                 const dy = (e.clientY - cy) * 0.32;
 
-                const maxPullX = Math.min(8, rect.width * 0.12);
-                const maxPullY = Math.min(6, rect.height * 0.22);
+                const maxPullX = Math.min(8, elRect.width * 0.12);
+                const maxPullY = Math.min(6, elRect.height * 0.22);
                 const pullX = Math.max(-maxPullX, Math.min(maxPullX, dx));
                 const pullY = Math.max(-maxPullY, Math.min(maxPullY, dy));
 
@@ -1065,10 +1320,11 @@
                 if (childSpan) {
                     childSpan.style.transform = `translate3d(${(pullX * 0.45).toFixed(2)}px, ${(pullY * 0.45).toFixed(2)}px, 0)`;
                 }
-            });
+            }, { passive: true });
 
             el.addEventListener('pointerleave', () => {
                 el.classList.remove('is-pulling');
+                elRect = null;
                 el.style.transform = '';
                 if (childSpan) {
                     childSpan.style.transform = '';
@@ -1088,8 +1344,15 @@
             let curX = -100;
             let curY = -100;
             let active = false;
+            let cursorRafId = 0;
 
             const interactiveHoverSelector = 'a, button, summary, input, .tags li, .compass';
+
+            function wakeCursor() {
+                if (active && !cursorRafId && !perfState.hidden) {
+                    cursorRafId = requestAnimationFrame(updateCursor);
+                }
+            }
 
             window.addEventListener('pointermove', (e) => {
                 mouseX = e.clientX;
@@ -1098,10 +1361,12 @@
                     active = true;
                     curX = mouseX;
                     curY = mouseY;
+                    cursor.style.transform = `translate3d(${curX.toFixed(2)}px, ${curY.toFixed(2)}px, 0)`;
                     cursor.classList.add('is-active');
                 }
                 const isHover = Boolean(e.target && e.target.closest && e.target.closest(interactiveHoverSelector));
                 cursor.classList.toggle('is-hovering', isHover);
+                wakeCursor();
             }, { passive: true });
 
             window.addEventListener('pointerdown', () => {
@@ -1118,14 +1383,16 @@
             });
 
             function updateCursor() {
-                if (active) {
-                    curX += (mouseX - curX) * 0.22;
-                    curY += (mouseY - curY) * 0.22;
-                    cursor.style.transform = `translate3d(${curX.toFixed(2)}px, ${curY.toFixed(2)}px, 0)`;
+                cursorRafId = 0;
+                if (!active || perfState.hidden) return;
+                curX += (mouseX - curX) * 0.22;
+                curY += (mouseY - curY) * 0.22;
+                cursor.style.transform = `translate3d(${curX.toFixed(2)}px, ${curY.toFixed(2)}px, 0)`;
+
+                if (Math.abs(mouseX - curX) > 0.1 || Math.abs(mouseY - curY) > 0.1) {
+                    cursorRafId = requestAnimationFrame(updateCursor);
                 }
-                requestAnimationFrame(updateCursor);
             }
-            requestAnimationFrame(updateCursor);
         }
 
         // 3. Cartographic Survey Sonar Tap / Click Ripple + Tactile Audio Synthesis
@@ -1204,18 +1471,31 @@
        10. ATMOSPHERIC POLISH (Archival Paper Grain + Chameleon Sticky Header)
        ========================================================================== */
     function initAtmosphericPolish() {
-        // #4: Subtle Archival Paper Grain + Ambient Desk-Light Overlay
+        // #4: Subtle Archival Paper Grain + GPU-Composited Ambient Desk-Light Overlay
         const atmosphere = document.createElement('div');
         atmosphere.className = 'paper-atmosphere';
         atmosphere.setAttribute('aria-hidden', 'true');
         document.body.appendChild(atmosphere);
 
+        const deskLight = document.createElement('div');
+        deskLight.className = 'paper-atmosphere-light';
+        deskLight.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(deskLight);
+
         if (!prefersReducedMotion) {
+            let lightX = window.innerWidth * 0.5;
+            let lightY = window.innerHeight * 0.28;
+            let lightRafId = 0;
+
             window.addEventListener('pointermove', (e) => {
-                const xPct = ((e.clientX / window.innerWidth) * 100).toFixed(1);
-                const yPct = ((e.clientY / window.innerHeight) * 100).toFixed(1);
-                atmosphere.style.setProperty('--light-x', `${xPct}%`);
-                atmosphere.style.setProperty('--light-y', `${yPct}%`);
+                lightX = e.clientX;
+                lightY = e.clientY;
+                if (!lightRafId) {
+                    lightRafId = requestAnimationFrame(() => {
+                        lightRafId = 0;
+                        deskLight.style.transform = `translate3d(${lightX}px, ${lightY}px, 0)`;
+                    });
+                }
             }, { passive: true });
         }
 

@@ -285,7 +285,6 @@
 .project {
     position: relative;
     transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease, border-color 0.28s ease, opacity 0.25s ease;
-    will-change: transform, opacity;
 }
 
 .project:hover {
@@ -592,6 +591,17 @@ html.lenis body {
 .training-record__date strong {
     transform: skewY(var(--scroll-skew, 0deg)) skewX(var(--scroll-shear, 0deg)) scaleY(var(--scroll-stretch, 1));
     transform-origin: left center;
+}
+
+html.is-scrolling .hero h1,
+html.is-scrolling .section-title,
+html.is-scrolling .project h3,
+html.is-scrolling .field-record__hours strong,
+html.is-scrolling .field-record__entry h3,
+html.is-scrolling .research-copy h3,
+html.is-scrolling .study-score,
+html.is-scrolling .training-record__title,
+html.is-scrolling .training-record__date strong {
     will-change: transform;
 }
 
@@ -666,11 +676,11 @@ summary,
 }
 
 .is-magnetic {
-    will-change: transform;
     transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), scale 0.12s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
 
 .is-magnetic.is-pulling {
+    will-change: transform;
     transition: transform 0.08s linear, background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
 
@@ -699,13 +709,10 @@ summary,
         pointer-events: none;
         z-index: 120;
         opacity: 0;
-        will-change: transform, width, height;
-        transition: width 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-                    height 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-                    margin 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+        will-change: transform;
+        transition: scale 0.22s cubic-bezier(0.22, 1, 0.36, 1),
                     border-color 0.2s ease,
                     background-color 0.2s ease,
-                    border-radius 0.22s ease,
                     opacity 0.2s ease;
     }
 
@@ -721,7 +728,7 @@ summary,
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        transition: width 0.2s ease, height 0.2s ease, background-color 0.2s ease;
+        transition: transform 0.2s ease, background-color 0.2s ease;
     }
 
     .drafting-cursor::before {
@@ -735,24 +742,21 @@ summary,
     }
 
     .drafting-cursor.is-hovering {
-        width: 40px;
-        height: 40px;
-        margin-left: -20px;
-        margin-top: -20px;
+        scale: 1.54;
         border-color: var(--orange);
         background-color: rgba(255, 113, 60, 0.08);
     }
 
     .drafting-cursor.is-hovering::before {
-        width: 9px;
+        transform: translate(-50%, -50%) scaleX(1.3);
     }
 
     .drafting-cursor.is-hovering::after {
-        height: 9px;
+        transform: translate(-50%, -50%) scaleY(1.3);
     }
 
     .drafting-cursor.is-pressed {
-        transform: scale(0.84);
+        scale: 0.84;
     }
 }
 
@@ -809,16 +813,29 @@ summary,
     height: 100vh;
     pointer-events: none;
     z-index: 80;
-    background-image:
-        radial-gradient(
-            680px circle at var(--light-x, 50%) var(--light-y, 28%),
-            rgba(255, 238, 204, 0.18),
-            transparent 72%
-        ),
-        url("data:image/svg+xml,%3Csvg viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.042'/%3E%3C/svg%3E");
-    background-repeat: no-repeat, repeat;
-    background-size: 100% 100%, 180px 180px;
+    contain: strict;
+    transform: translateZ(0);
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.042'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 180px 180px;
     mix-blend-mode: multiply;
+}
+
+.paper-atmosphere-light {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 680px;
+    height: 680px;
+    margin-left: -340px;
+    margin-top: -340px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 79;
+    background: radial-gradient(circle, rgba(255, 238, 204, 0.18) 0%, transparent 72%);
+    mix-blend-mode: multiply;
+    transform: translate3d(50vw, 28vh, 0);
+    will-change: transform;
 }
 
 /* ==========================================================================
@@ -843,8 +860,7 @@ summary,
 }
 
 .site-header.is-dark-surface {
-    background-color: rgba(25, 60, 50, 0.96);
-    backdrop-filter: blur(8px);
+    background-color: rgba(25, 60, 50, 0.97);
     color: var(--paper);
     border-bottom-color: #486658;
     box-shadow: 0 8px 24px rgba(10, 26, 21, 0.24);
@@ -922,5 +938,20 @@ summary,
     .training-record__date strong {
         transform: none !important;
     }
+}
+
+/* Adaptive Low-Power / Battery-Constrained Mode (auto-enabled on sustained frame drops or battery saver) */
+html.is-low-power .paper-atmosphere,
+html.is-low-power .paper-atmosphere-light {
+    mix-blend-mode: normal;
+}
+
+html.is-low-power .plate-coords {
+    backdrop-filter: none;
+    background: rgba(247, 245, 237, 0.92);
+}
+
+html.is-low-power .cmd-palette-backdrop {
+    backdrop-filter: none;
 }
 
