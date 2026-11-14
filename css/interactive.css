@@ -982,3 +982,433 @@ html.is-low-power .cmd-palette-backdrop {
     opacity: 1;
 }
 
+/* ==========================================================================
+   #8: Cartographic Vernier & Altimeter Custom Scrollbar
+   ========================================================================== */
+.vernier-scrollbar {
+    display: none;
+}
+
+@media (pointer: fine) and (min-width: 47.01rem) {
+    html.has-custom-scrollbar {
+        scrollbar-width: none;
+    }
+
+    html.has-custom-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .vernier-scrollbar {
+        position: fixed;
+        top: 5.35rem;
+        bottom: 1.25rem;
+        right: 0.42rem;
+        width: 24px;
+        z-index: 90;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.35rem;
+        user-select: none;
+        opacity: 0.62;
+        transition: opacity 0.28s ease, width 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    /* Invisible left hit-area extension for comfortable pointer grabbing */
+    .vernier-scrollbar::before {
+        content: "";
+        position: absolute;
+        inset: -0.35rem -0.42rem -0.35rem -14px;
+        pointer-events: auto;
+    }
+
+    .vernier-scrollbar.is-near-edge,
+    .vernier-scrollbar.is-scrolling,
+    .vernier-scrollbar.is-hovering,
+    .vernier-scrollbar.is-dragging {
+        opacity: 1;
+    }
+
+    .vernier-scrollbar.is-hovering,
+    .vernier-scrollbar.is-dragging {
+        width: 30px;
+    }
+
+    .vernier-datum {
+        position: relative;
+        z-index: 1;
+        font: 700 0.5rem/1 var(--sans);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        padding-right: 1px;
+        pointer-events: none;
+        transition: color 0.25s ease;
+    }
+
+    .vernier-scrollbar.is-top-dark .vernier-datum--top,
+    .vernier-scrollbar.is-bottom-dark .vernier-datum--bottom {
+        color: #b9d1bf;
+    }
+
+    .vernier-rail {
+        position: relative;
+        z-index: 1;
+        flex: 1;
+        width: 100%;
+        min-height: 0;
+        cursor: pointer;
+        touch-action: none;
+    }
+
+    /* Precision graduated surveyor scale ticks */
+    .vernier-ticks {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+            repeating-linear-gradient(
+                to bottom,
+                rgba(25, 60, 50, 0.52) 0 1px,
+                transparent 1px 30px
+            ),
+            repeating-linear-gradient(
+                to bottom,
+                rgba(72, 92, 80, 0.26) 0 1px,
+                transparent 1px 6px
+            );
+        background-size: 9px 100%, 4px 100%;
+        background-position: right top, right top;
+        background-repeat: no-repeat;
+        transition: opacity 0.22s ease, background-size 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .vernier-scrollbar.is-hovering .vernier-ticks,
+    .vernier-scrollbar.is-dragging .vernier-ticks {
+        background-size: 13px 100%, 6px 100%;
+    }
+
+    .vernier-scrollbar.is-rail-dark .vernier-ticks {
+        background-image:
+            repeating-linear-gradient(
+                to bottom,
+                rgba(247, 245, 237, 0.45) 0 1px,
+                transparent 1px 30px
+            ),
+            repeating-linear-gradient(
+                to bottom,
+                rgba(185, 209, 191, 0.26) 0 1px,
+                transparent 1px 6px
+            );
+    }
+
+    /* Outer vertical progress spine + filled orange filament */
+    .vernier-spine {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        right: 0;
+        width: 2px;
+        background: rgba(181, 187, 174, 0.48);
+        pointer-events: none;
+        transition: background-color 0.25s ease;
+    }
+
+    .vernier-scrollbar.is-rail-dark .vernier-spine {
+        background: rgba(185, 209, 191, 0.26);
+    }
+
+    .vernier-progress {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        right: 0;
+        width: 2px;
+        background: var(--orange);
+        transform-origin: top center;
+        transform: scaleY(var(--progress-ratio, 0));
+        pointer-events: none;
+        will-change: transform;
+    }
+
+    /* Section Waypoint Pips & Slide-Out Labels */
+    .vernier-waypoints {
+        position: absolute;
+        inset: 0;
+        z-index: 3;
+        pointer-events: none;
+    }
+
+    .vernier-waypoint {
+        position: absolute;
+        right: 0;
+        top: calc(4px + var(--wp-ratio, 0) * (100% - 8px));
+        width: 24px;
+        height: 18px;
+        transform: translateY(-50%);
+        padding: 0;
+        border: 0;
+        background: transparent;
+        cursor: pointer;
+        pointer-events: auto;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+    }
+
+    .vernier-waypoint-pip {
+        position: relative;
+        width: 7px;
+        height: 7px;
+        margin-right: -2.5px;
+        border: 1.5px solid var(--ink);
+        background: var(--paper);
+        transform: rotate(45deg) scale(0.75);
+        transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+                    background-color 0.2s ease,
+                    border-color 0.2s ease;
+    }
+
+    .vernier-waypoint.is-on-dark .vernier-waypoint-pip {
+        border-color: var(--paper);
+        background: var(--ink);
+    }
+
+    .vernier-waypoint.is-active .vernier-waypoint-pip {
+        background: var(--orange);
+        border-color: var(--ink);
+        transform: rotate(45deg) scale(1.1);
+    }
+
+    .vernier-waypoint.is-on-dark.is-active .vernier-waypoint-pip {
+        border-color: var(--paper);
+    }
+
+    .vernier-waypoint:hover .vernier-waypoint-pip {
+        transform: rotate(45deg) scale(1.3);
+        border-color: var(--orange);
+    }
+
+    .vernier-waypoint-label {
+        position: absolute;
+        right: calc(100% + 0.55rem);
+        top: 50%;
+        padding: 0.24rem 0.48rem;
+        background: var(--ink);
+        color: var(--paper);
+        border-left: 2.5px solid var(--orange);
+        font: 700 0.58rem/1.1 var(--sans);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        white-space: nowrap;
+        box-shadow: 2px 3px 0 rgba(25, 60, 50, 0.2);
+        opacity: 0;
+        pointer-events: none;
+        transform: translate3d(8px, -50%, 0);
+        transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .vernier-waypoint.is-on-dark .vernier-waypoint-label {
+        background: var(--paper);
+        color: var(--ink);
+        box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.28);
+    }
+
+    .vernier-waypoint:hover .vernier-waypoint-label,
+    .vernier-waypoint:focus-visible .vernier-waypoint-label {
+        opacity: 1;
+        transform: translate3d(0, -50%, 0);
+    }
+
+    /* Velocity-Morphing Elastic Caliper Thumb */
+    .vernier-thumb {
+        position: absolute;
+        top: 0;
+        right: -1px;
+        z-index: 2;
+        width: 14px;
+        height: var(--thumb-height, 44px);
+        transform: translate3d(0, var(--thumb-y, 0px), 0);
+        pointer-events: none;
+        will-change: transform;
+        transition: width 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .vernier-scrollbar.is-hovering .vernier-thumb,
+    .vernier-scrollbar.is-dragging .vernier-thumb {
+        width: 18px;
+    }
+
+    .vernier-thumb-core {
+        position: absolute;
+        inset: 0;
+        background: rgba(25, 60, 50, 0.13);
+        border-right: 3px solid var(--ink);
+        border-left: 1px solid rgba(25, 60, 50, 0.42);
+        transform-origin: center top;
+        transform: scaleY(var(--thumb-stretch, 1));
+        will-change: transform;
+        transition: background-color 0.22s ease, border-color 0.22s ease;
+    }
+
+    .vernier-scrollbar.is-dragging .vernier-thumb-core,
+    .vernier-scrollbar.is-hovering .vernier-thumb-core {
+        background: rgba(255, 113, 60, 0.18);
+        border-left-color: rgba(255, 113, 60, 0.65);
+    }
+
+    .vernier-scrollbar.is-thumb-dark .vernier-thumb-core {
+        background: rgba(247, 245, 237, 0.16);
+        border-right-color: var(--paper);
+        border-left-color: rgba(247, 245, 237, 0.45);
+    }
+
+    .vernier-scrollbar.is-thumb-dark.is-dragging .vernier-thumb-core,
+    .vernier-scrollbar.is-thumb-dark.is-hovering .vernier-thumb-core {
+        background: rgba(255, 113, 60, 0.24);
+        border-left-color: var(--orange);
+    }
+
+    .vernier-thumb-cap {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: var(--ink);
+        transition: background-color 0.22s ease;
+    }
+
+    .vernier-thumb-cap--top {
+        top: 0;
+    }
+
+    .vernier-thumb-cap--bottom {
+        bottom: 0;
+        transform: translate3d(0, var(--thumb-extra-px, 0px), 0);
+        will-change: transform;
+    }
+
+    .vernier-scrollbar.is-thumb-dark .vernier-thumb-cap {
+        background: var(--paper);
+    }
+
+    .vernier-thumb-reticle {
+        position: absolute;
+        left: -3px;
+        right: 0;
+        top: calc(50% - 1px);
+        height: 2px;
+        background: var(--orange);
+        transform: translate3d(0, calc(var(--thumb-extra-px, 0px) * 0.5), 0);
+        will-change: transform;
+    }
+
+    /* Live Altimeter Telemetry Readout Callout */
+    .vernier-readout {
+        position: absolute;
+        top: 0;
+        right: calc(100% + 0.65rem);
+        z-index: 4;
+        min-width: 6.25rem;
+        padding: 0.38rem 0.55rem;
+        background: rgba(247, 245, 237, 0.94);
+        backdrop-filter: blur(5px);
+        border: 1px solid var(--ink);
+        border-left: 3px solid var(--orange);
+        color: var(--ink);
+        box-shadow: 2px 3px 0 rgba(25, 60, 50, 0.16);
+        pointer-events: none;
+        opacity: 0;
+        translate: 0 calc(var(--readout-y, 0px) - 50%);
+        transform: translate3d(10px, 0, 0);
+        will-change: translate, transform, opacity;
+        transition: opacity 0.22s ease,
+                    transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+                    background-color 0.25s ease,
+                    color 0.25s ease,
+                    border-color 0.25s ease;
+    }
+
+    .vernier-scrollbar.is-scrolling .vernier-readout,
+    .vernier-scrollbar.is-hovering .vernier-readout,
+    .vernier-scrollbar.is-dragging .vernier-readout {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+    }
+
+    /* Hide telemetry badge temporarily when hovering a waypoint pill so labels never collide */
+    .vernier-scrollbar.is-waypoint-hover .vernier-readout {
+        opacity: 0;
+    }
+
+    .vernier-scrollbar.is-thumb-dark .vernier-readout {
+        background: rgba(25, 60, 50, 0.94);
+        border-color: #789183;
+        border-left-color: var(--orange);
+        color: var(--paper);
+        box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.28);
+    }
+
+    .vernier-readout-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.55rem;
+    }
+
+    .vernier-pct {
+        font: 800 1.05rem/0.95 var(--display);
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .vernier-sec {
+        font: 700 0.54rem/1 var(--sans);
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        color: var(--orange);
+    }
+
+    .vernier-elev {
+        margin-top: 0.2rem;
+        font: 700 0.52rem/1.1 var(--sans);
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
+        color: var(--muted);
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .vernier-scrollbar.is-thumb-dark .vernier-elev {
+        color: #b9d1bf;
+    }
+
+    /* Keep custom scrollbar hidden/dimmed when Command Palette is open */
+    body:has(.cmd-palette-backdrop.is-open) .vernier-scrollbar {
+        opacity: 0;
+        pointer-events: none;
+    }
+}
+
+html.is-low-power .vernier-readout {
+    backdrop-filter: none;
+    background: var(--paper);
+}
+
+html.is-low-power .vernier-scrollbar.is-thumb-dark .vernier-readout {
+    background: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vernier-scrollbar,
+    .vernier-ticks,
+    .vernier-waypoint-pip,
+    .vernier-waypoint-label,
+    .vernier-thumb,
+    .vernier-thumb-core,
+    .vernier-readout {
+        transition: none !important;
+    }
+}
+
+

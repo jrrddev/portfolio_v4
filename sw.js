@@ -1,15 +1,15 @@
 /**
  * Service Worker — Offline-First & Instant Asset Cache for Jared Verana Portfolio
  */
-const CACHE_VERSION = 'jrrd-portfolio-v2';
+const CACHE_VERSION = 'jrrd-portfolio-v3';
 
 const PRECACHE_ASSETS = [
     './',
     './index.html',
     './css/style.css',
     './css/records.css',
-    './css/interactive.css?v=2',
-    './js/main.js?v=2',
+    './css/interactive.css?v=3',
+    './js/main.js?v=3',
     './fonts/barlow-condensed-700.woff2',
     './fonts/barlow-condensed-800.woff2',
     './fonts/dm-sans-variable.woff2',

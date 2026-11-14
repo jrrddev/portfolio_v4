@@ -1118,6 +1118,21 @@
     /* ==========================================================================
        8. LENIS SMOOTH INERTIA SCROLLING + SCROLL-VELOCITY TYPOGRAPHY SKEW
        ========================================================================== */
+    const scrollBridge = {
+        getVelocity: () => 0,
+        scrollTo: (target, options = {}) => {
+            const y = typeof target === 'number'
+                ? target
+                : Math.max(0, target.getBoundingClientRect().top + window.scrollY + (options.offset || 0));
+            window.scrollTo({
+                top: y,
+                behavior: options.immediate || prefersReducedMotion ? 'auto' : 'smooth'
+            });
+        },
+        wake: () => {},
+        resize: () => {}
+    };
+
     function initLenisAndVelocitySkew() {
         if (prefersReducedMotion) return;
 
@@ -1147,6 +1162,9 @@
             }
         }
 
+        scrollBridge.getVelocity = () => rawVelocity;
+        scrollBridge.wake = wakeScrollLoop;
+
         function setupLenis(LenisCtor) {
             if (!LenisCtor || lenisInstance) return;
 
@@ -1157,6 +1175,17 @@
                 wheelMultiplier: 1.0,
                 touchMultiplier: 1.5
             });
+
+            scrollBridge.scrollTo = (target, options = {}) => {
+                if (!lenisInstance) return;
+                wakeScrollLoop(options.immediate ? 140 : Math.round((options.duration || 1.1) * 1000) + 200);
+                lenisInstance.scrollTo(target, options);
+            };
+            scrollBridge.resize = () => {
+                if (lenisInstance && typeof lenisInstance.resize === 'function') {
+                    lenisInstance.resize();
+                }
+            };
 
             // Prevent Lenis from hijacking scroll inside scrollable popovers/command list
             document.querySelectorAll('.cert-stage, .cmd-list').forEach((el) => {
@@ -1346,7 +1375,7 @@
             let active = false;
             let cursorRafId = 0;
 
-            const interactiveHoverSelector = 'a, button, summary, input, .tags li, .compass';
+            const interactiveHoverSelector = 'a, button, summary, input, .tags li, .compass, .vernier-rail, .vernier-waypoint';
 
             function wakeCursor() {
                 if (active && !cursorRafId && !perfState.hidden) {
@@ -1610,6 +1639,493 @@
     }
 
     /* ==========================================================================
+       12. CARTOGRAPHIC VERNIER & ALTIMETER CUSTOM SCROLLBAR
+       ========================================================================== */
+    function initCustomScrollbar() {
+        const root = document.documentElement;
+        const desktopQuery = window.matchMedia('(pointer: fine) and (min-width: 47.01rem)');
+
+        const sectionDefs = [
+            { id: 'profile', code: '01', label: 'Profile', scrollTarget: 0 },
+            { id: 'projects', code: '02', label: 'Projects' },
+            { id: 'experience', code: '03', label: 'Experience' },
+            { id: 'research', code: '04', label: 'Research' },
+            { id: 'training', code: '05', label: 'Training' },
+            { id: 'contact', code: '06', label: 'Contact' }
+        ];
+
+        const sections = sectionDefs
+            .map((def) => {
+                const el = document.getElementById(def.id);
+                return el ? { ...def, el } : null;
+            })
+            .filter(Boolean);
+
+        if (sections.length === 0) return;
+
+        // Build Vernier Scrollbar DOM
+        const scrollbar = document.createElement('aside');
+        scrollbar.className = 'vernier-scrollbar';
+        scrollbar.setAttribute('role', 'scrollbar');
+        scrollbar.setAttribute('aria-controls', 'main');
+        scrollbar.setAttribute('aria-orientation', 'vertical');
+        scrollbar.setAttribute('aria-valuemin', '0');
+        scrollbar.setAttribute('aria-valuemax', '100');
+        scrollbar.setAttribute('aria-valuenow', '0');
+        scrollbar.setAttribute('aria-label', 'Page scroll navigator');
+
+        scrollbar.innerHTML = `
+            <span class="vernier-datum vernier-datum--top" aria-hidden="true">00</span>
+            <div class="vernier-rail">
+                <div class="vernier-ticks" aria-hidden="true"></div>
+                <div class="vernier-spine" aria-hidden="true"></div>
+                <div class="vernier-progress" aria-hidden="true"></div>
+                <div class="vernier-waypoints"></div>
+                <div class="vernier-thumb" aria-hidden="true">
+                    <span class="vernier-thumb-core"></span>
+                    <span class="vernier-thumb-cap vernier-thumb-cap--top"></span>
+                    <span class="vernier-thumb-reticle"></span>
+                    <span class="vernier-thumb-cap vernier-thumb-cap--bottom"></span>
+                </div>
+                <div class="vernier-readout" aria-hidden="true">
+                    <div class="vernier-readout-row">
+                        <span class="vernier-pct">000%</span>
+                        <span class="vernier-sec">SEC 01</span>
+                    </div>
+                    <div class="vernier-elev">EL +048M</div>
+                </div>
+            </div>
+            <span class="vernier-datum vernier-datum--bottom" aria-hidden="true">MAX</span>
+        `;
+
+        document.body.appendChild(scrollbar);
+
+        const rail = scrollbar.querySelector('.vernier-rail');
+        const waypointsContainer = scrollbar.querySelector('.vernier-waypoints');
+        const pctEl = scrollbar.querySelector('.vernier-pct');
+        const secEl = scrollbar.querySelector('.vernier-sec');
+        const elevEl = scrollbar.querySelector('.vernier-elev');
+        const darkEls = Array.from(document.querySelectorAll('.toolkit, .field-record, .footer'));
+
+        const waypoints = sections.map((sec) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'vernier-waypoint';
+            btn.tabIndex = -1;
+            btn.setAttribute('aria-label', `Jump to ${sec.label} section`);
+            btn.innerHTML = `
+                <span class="vernier-waypoint-pip" aria-hidden="true"></span>
+                <span class="vernier-waypoint-label">${sec.code} ${sec.label}</span>
+            `;
+
+            btn.addEventListener('pointerenter', () => {
+                scrollbar.classList.add('is-waypoint-hover');
+            });
+            btn.addEventListener('pointerleave', () => {
+                scrollbar.classList.remove('is-waypoint-hover');
+            });
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const target = sec.scrollTarget === 0 ? 0 : sec.el;
+                const offset = sec.scrollTarget === 0 ? 0 : -74;
+                scrollBridge.scrollTo(target, { offset, duration: 1.05 });
+                wakeScrollbar(1150, true);
+            });
+
+            waypointsContainer.appendChild(btn);
+            return { ...sec, btn, docTop: 0, targetY: 0, ratio: 0 };
+        });
+
+        // Layout & geometry caches
+        let isEnabled = false;
+        let maxScroll = 1;
+        let railTop = 85;
+        let railHeight = 500;
+        let baseThumbHeight = 44;
+        let maxThumbY = 456;
+        let darkZones = [];
+
+        // Physics & render caches
+        let rafId = 0;
+        let activeUntil = 0;
+        let scrollBadgeUntil = 0;
+        let reducedIdleTimer = null;
+        let hasRenderedOnce = false;
+
+        let currentLeadY = 0;
+        let currentTopY = 0;
+        let currentRenderedHeight = 44;
+        let lagPx = 0;
+        let lagVel = 0;
+        let readoutY = 22;
+
+        let lastPct = -1;
+        let lastElev = null;
+        let lastActiveCode = '';
+        let lastThumbY = '';
+        let lastExtraPx = '';
+        let lastStretch = '';
+        let lastReadoutY = '';
+        let lastProgress = '';
+
+        // Pointer drag / scrub state
+        let isDragging = false;
+        let isPendingTrackDrag = false;
+        let activePointerId = null;
+        let dragStartY = 0;
+        let dragGrabOffset = 0;
+        let prevDragLeadY = 0;
+        let dragVel = 0;
+
+        function measureLayout() {
+            const scrollH = document.documentElement.scrollHeight;
+            const viewH = window.innerHeight;
+            const canScroll = scrollH > viewH + 16;
+
+            const shouldEnable = desktopQuery.matches && canScroll;
+            if (shouldEnable !== isEnabled) {
+                isEnabled = shouldEnable;
+                root.classList.toggle('has-custom-scrollbar', isEnabled);
+                scrollbar.style.display = isEnabled ? 'flex' : 'none';
+            }
+
+            if (!isEnabled) return;
+
+            maxScroll = Math.max(1, scrollH - viewH);
+            const rect = rail.getBoundingClientRect();
+            railTop = rect.top;
+            railHeight = Math.max(1, rect.height);
+
+            baseThumbHeight = Math.max(34, Math.min(84, Math.round((viewH / Math.max(1, scrollH)) * railHeight)));
+            maxThumbY = Math.max(1, railHeight - baseThumbHeight);
+            scrollbar.style.setProperty('--thumb-height', `${baseThumbHeight}px`);
+
+            waypoints.forEach((wp) => {
+                const elRect = wp.el.getBoundingClientRect();
+                const docTop = elRect.top + window.scrollY;
+                const targetY = wp.scrollTarget === 0 ? 0 : Math.max(0, Math.min(maxScroll, docTop - 74));
+                wp.docTop = docTop;
+                wp.targetY = targetY;
+                wp.ratio = Math.max(0, Math.min(1, targetY / maxScroll));
+                wp.btn.style.setProperty('--wp-ratio', wp.ratio.toFixed(4));
+            });
+
+            darkZones = darkEls.map((el) => {
+                const r = el.getBoundingClientRect();
+                return {
+                    top: r.top + window.scrollY,
+                    bottom: r.bottom + window.scrollY
+                };
+            });
+
+            scrollBridge.resize();
+        }
+
+        function isDocYDark(docY) {
+            for (let i = 0; i < darkZones.length; i++) {
+                if (docY >= darkZones[i].top && docY <= darkZones[i].bottom) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function renderScrollbar(now, forceSnap = false) {
+            rafId = 0;
+            if (!isEnabled || perfState.hidden) return;
+
+            const scrollY = window.scrollY;
+            const ratio = Math.max(0, Math.min(1, scrollY / maxScroll));
+            const leadY = ratio * maxThumbY;
+            currentLeadY = leadY;
+
+            const velocity = isDragging ? dragVel : scrollBridge.getVelocity();
+            if (isDragging) {
+                dragVel *= 0.8;
+            }
+
+            if (prefersReducedMotion || forceSnap) {
+                lagPx = 0;
+                lagVel = 0;
+            } else {
+                const targetLag = Math.max(-52, Math.min(52, -velocity * 1.25));
+                const force = (targetLag - lagPx) * 0.19;
+                lagVel = (lagVel + force) * 0.73;
+                lagPx += lagVel;
+
+                if (Math.abs(targetLag) < 0.04 && Math.abs(lagPx) < 0.08 && Math.abs(lagVel) < 0.08) {
+                    lagPx = 0;
+                    lagVel = 0;
+                }
+            }
+
+            const topY = Math.max(0, Math.min(maxThumbY, leadY + Math.min(0, lagPx)));
+            const bottomY = Math.min(
+                railHeight,
+                Math.max(topY + baseThumbHeight, Math.min(maxThumbY, leadY + Math.max(0, lagPx)) + baseThumbHeight)
+            );
+            const renderedHeight = Math.max(baseThumbHeight, bottomY - topY);
+            const extraPx = renderedHeight - baseThumbHeight;
+            const stretchScale = renderedHeight / baseThumbHeight;
+
+            currentTopY = topY;
+            currentRenderedHeight = renderedHeight;
+
+            const targetReadoutY = Math.max(18, Math.min(railHeight - 18, topY + renderedHeight * 0.5));
+            if (prefersReducedMotion || forceSnap || !hasRenderedOnce) {
+                readoutY = targetReadoutY;
+            } else {
+                readoutY += (targetReadoutY - readoutY) * 0.2;
+                if (Math.abs(targetReadoutY - readoutY) < 0.08) {
+                    readoutY = targetReadoutY;
+                }
+            }
+            hasRenderedOnce = true;
+
+            const nextThumbY = `${topY.toFixed(2)}px`;
+            const nextExtraPx = `${extraPx.toFixed(2)}px`;
+            const nextStretch = stretchScale.toFixed(4);
+            const nextReadoutY = `${readoutY.toFixed(2)}px`;
+            const nextProgress = ratio.toFixed(4);
+
+            if (nextThumbY !== lastThumbY) {
+                lastThumbY = nextThumbY;
+                scrollbar.style.setProperty('--thumb-y', nextThumbY);
+            }
+            if (nextExtraPx !== lastExtraPx) {
+                lastExtraPx = nextExtraPx;
+                scrollbar.style.setProperty('--thumb-extra-px', nextExtraPx);
+            }
+            if (nextStretch !== lastStretch) {
+                lastStretch = nextStretch;
+                scrollbar.style.setProperty('--thumb-stretch', nextStretch);
+            }
+            if (nextReadoutY !== lastReadoutY) {
+                lastReadoutY = nextReadoutY;
+                scrollbar.style.setProperty('--readout-y', nextReadoutY);
+            }
+            if (nextProgress !== lastProgress) {
+                lastProgress = nextProgress;
+                scrollbar.style.setProperty('--progress-ratio', nextProgress);
+            }
+
+            // Telemetry percentage & simulated depth/elevation readout
+            const pct = Math.round(ratio * 100);
+            if (pct !== lastPct) {
+                lastPct = pct;
+                pctEl.textContent = `${String(pct).padStart(3, '0')}%`;
+                scrollbar.setAttribute('aria-valuenow', String(pct));
+            }
+
+            const elevMeters = Math.round(48 - ratio * 188);
+            if (elevMeters !== lastElev) {
+                lastElev = elevMeters;
+                elevEl.textContent = elevMeters >= 0
+                    ? `EL +${String(elevMeters).padStart(3, '0')}M`
+                    : `DP -${String(Math.abs(elevMeters)).padStart(3, '0')}M`;
+            }
+
+            // Active waypoint detection based on reading line
+            const docProbeY = scrollY + window.innerHeight * 0.35;
+            let activeWp = waypoints[0];
+            if (scrollY >= maxScroll - 24) {
+                activeWp = waypoints[waypoints.length - 1];
+            } else {
+                for (let i = 0; i < waypoints.length; i++) {
+                    if (waypoints[i].docTop <= docProbeY) {
+                        activeWp = waypoints[i];
+                    }
+                }
+            }
+
+            if (activeWp && activeWp.code !== lastActiveCode) {
+                lastActiveCode = activeWp.code;
+                secEl.textContent = `SEC ${activeWp.code}`;
+                waypoints.forEach((wp) => {
+                    wp.btn.classList.toggle('is-active', wp.code === activeWp.code);
+                });
+            }
+
+            // Chameleon dark-surface contrast check using cached section bounds
+            const thumbDocCenterY = scrollY + railTop + topY + renderedHeight * 0.5;
+            scrollbar.classList.toggle('is-thumb-dark', isDocYDark(thumbDocCenterY));
+            scrollbar.classList.toggle('is-top-dark', isDocYDark(scrollY + railTop - 10));
+            scrollbar.classList.toggle('is-bottom-dark', isDocYDark(scrollY + railTop + railHeight + 10));
+            scrollbar.classList.toggle('is-rail-dark', isDocYDark(scrollY + railTop + railHeight * 0.5));
+
+            for (let i = 0; i < waypoints.length; i++) {
+                const wp = waypoints[i];
+                const wpDocY = scrollY + railTop + 4 + wp.ratio * (railHeight - 8);
+                wp.btn.classList.toggle('is-on-dark', isDocYDark(wpDocY));
+            }
+
+            const showBadge = isDragging || Math.abs(velocity) > 0.05 || now < scrollBadgeUntil;
+            scrollbar.classList.toggle('is-scrolling', showBadge);
+
+            const needsContinue = !prefersReducedMotion && (
+                isDragging ||
+                Math.abs(velocity) > 0.03 ||
+                Math.abs(lagPx) > 0.05 ||
+                Math.abs(lagVel) > 0.05 ||
+                Math.abs(targetReadoutY - readoutY) > 0.1 ||
+                now < activeUntil ||
+                now < scrollBadgeUntil
+            );
+
+            if (needsContinue) {
+                rafId = requestAnimationFrame(renderScrollbar);
+            } else {
+                scrollbar.classList.remove('is-scrolling');
+            }
+        }
+
+        function wakeScrollbar(durationMs = 700, showBadge = false) {
+            if (!isEnabled) return;
+            const now = performance.now();
+            activeUntil = Math.max(activeUntil, now + durationMs);
+            if (showBadge) {
+                scrollBadgeUntil = Math.max(scrollBadgeUntil, now + 950);
+                if (prefersReducedMotion) {
+                    clearTimeout(reducedIdleTimer);
+                    reducedIdleTimer = setTimeout(() => {
+                        if (!isDragging) scrollbar.classList.remove('is-scrolling');
+                    }, 960);
+                }
+            }
+            if (!rafId && !perfState.hidden) {
+                rafId = requestAnimationFrame(renderScrollbar);
+            }
+        }
+
+        // Scroll & wheel listeners
+        window.addEventListener('scroll', () => wakeScrollbar(750, true), { passive: true });
+        window.addEventListener('wheel', () => wakeScrollbar(850, true), { passive: true });
+
+        // Hover & right-edge proximity detection
+        scrollbar.addEventListener('pointerenter', () => {
+            scrollbar.classList.add('is-hovering');
+            wakeScrollbar(350, false);
+        });
+        scrollbar.addEventListener('pointerleave', () => {
+            scrollbar.classList.remove('is-hovering', 'is-waypoint-hover');
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            if (!isEnabled || (e.pointerType && e.pointerType !== 'mouse')) return;
+            const nearRight = e.clientX >= window.innerWidth - 56;
+            scrollbar.classList.toggle('is-near-edge', nearRight);
+        }, { passive: true });
+
+        // Direct manipulation: Thumb drag & Track click-to-seek
+        rail.addEventListener('pointerdown', (e) => {
+            if (!isEnabled || e.button !== 0) return;
+            if (e.target && e.target.closest && e.target.closest('.vernier-waypoint')) return;
+
+            const pointerY = e.clientY - railTop;
+            activePointerId = e.pointerId;
+            dragStartY = e.clientY;
+
+            if (rail.setPointerCapture) {
+                try {
+                    rail.setPointerCapture(e.pointerId);
+                } catch (_) {}
+            }
+
+            const insideThumb = pointerY >= currentTopY - 6 && pointerY <= currentTopY + currentRenderedHeight + 6;
+            if (insideThumb) {
+                dragGrabOffset = Math.max(0, Math.min(baseThumbHeight, pointerY - currentLeadY));
+                prevDragLeadY = currentLeadY;
+                isDragging = true;
+                isPendingTrackDrag = false;
+                scrollbar.classList.add('is-dragging');
+                wakeScrollbar(500, true);
+            } else {
+                dragGrabOffset = baseThumbHeight * 0.5;
+                const nextLeadY = Math.max(0, Math.min(maxThumbY, pointerY - dragGrabOffset));
+                prevDragLeadY = nextLeadY;
+                isPendingTrackDrag = true;
+                isDragging = false;
+                const targetRatio = nextLeadY / maxThumbY;
+                scrollBridge.scrollTo(targetRatio * maxScroll, { duration: 0.72 });
+                wakeScrollbar(850, true);
+            }
+        });
+
+        rail.addEventListener('pointermove', (e) => {
+            if (!isEnabled || e.pointerId !== activePointerId) return;
+
+            if (isPendingTrackDrag) {
+                if (Math.abs(e.clientY - dragStartY) > 4) {
+                    isPendingTrackDrag = false;
+                    isDragging = true;
+                    scrollbar.classList.add('is-dragging');
+                } else {
+                    return;
+                }
+            }
+
+            if (!isDragging) return;
+
+            const pointerY = e.clientY - railTop;
+            const nextLeadY = Math.max(0, Math.min(maxThumbY, pointerY - dragGrabOffset));
+            const nextRatio = nextLeadY / maxThumbY;
+
+            dragVel = Math.max(-36, Math.min(36, (nextLeadY - prevDragLeadY) * 0.85));
+            prevDragLeadY = nextLeadY;
+
+            scrollBridge.scrollTo(nextRatio * maxScroll, { immediate: true });
+            wakeScrollbar(450, true);
+        });
+
+        function finishDrag(e) {
+            if (e.pointerId !== activePointerId) return;
+            if (rail.hasPointerCapture && rail.hasPointerCapture(e.pointerId)) {
+                try {
+                    rail.releasePointerCapture(e.pointerId);
+                } catch (_) {}
+            }
+            isDragging = false;
+            isPendingTrackDrag = false;
+            activePointerId = null;
+            dragVel = 0;
+            scrollbar.classList.remove('is-dragging');
+            wakeScrollbar(650, false);
+        }
+
+        rail.addEventListener('pointerup', finishDrag);
+        rail.addEventListener('pointercancel', finishDrag);
+
+        // Layout updates on resize, content filtering, fonts load, or mode switch
+        const refreshLayout = () => {
+            measureLayout();
+            if (isEnabled) {
+                renderScrollbar(performance.now(), !hasRenderedOnce);
+            }
+        };
+
+        window.addEventListener('resize', refreshLayout, { passive: true });
+        if (typeof desktopQuery.addEventListener === 'function') {
+            desktopQuery.addEventListener('change', refreshLayout);
+        }
+        if (typeof ResizeObserver === 'function') {
+            new ResizeObserver(refreshLayout).observe(document.documentElement);
+        }
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(refreshLayout).catch(() => {});
+        }
+
+        perfState.visibilityListeners.add((visible) => {
+            if (visible && isEnabled) {
+                measureLayout();
+                renderScrollbar(performance.now(), true);
+            }
+        });
+
+        measureLayout();
+        renderScrollbar(performance.now(), true);
+    }
+
+    /* ==========================================================================
        INITIALIZE ALL MODULES ON DOM READY
        ========================================================================== */
     function init() {
@@ -1624,6 +2140,7 @@
         initTactileMicroInteractions();
         initAtmosphericPolish();
         initImageCachingAndPrefetch();
+        initCustomScrollbar();
     }
 
     if (document.readyState === 'loading') {
