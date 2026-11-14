@@ -589,7 +589,6 @@ html.lenis body {
 .study-score,
 .training-record__title,
 .training-record__date strong {
-    transform: skewY(var(--scroll-skew, 0deg)) skewX(var(--scroll-shear, 0deg)) scaleY(var(--scroll-stretch, 1));
     transform-origin: left center;
 }
 
@@ -815,10 +814,9 @@ summary,
     z-index: 80;
     contain: strict;
     transform: translateZ(0);
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.042'/%3E%3C/svg%3E");
     background-repeat: repeat;
     background-size: 180px 180px;
-    mix-blend-mode: multiply;
+    mix-blend-mode: normal;
 }
 
 .paper-atmosphere-light {
@@ -832,8 +830,7 @@ summary,
     border-radius: 50%;
     pointer-events: none;
     z-index: 79;
-    background: radial-gradient(circle, rgba(255, 238, 204, 0.18) 0%, transparent 72%);
-    mix-blend-mode: multiply;
+    background: radial-gradient(circle, rgba(255, 232, 184, 0.14) 0%, rgba(255, 238, 204, 0.05) 42%, transparent 72%);
     transform: translate3d(50vw, 28vh, 0);
     will-change: transform;
 }

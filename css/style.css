@@ -176,7 +176,7 @@ a, summary { text-underline-offset: .23em; }
     width: 100%; max-width: 34rem; min-width: 0; aspect-ratio: 1.24;
     justify-self: end; background-color: #d6dec8; border: 1px solid #768b71;
 }
-.topography { position: absolute; inset: 0; overflow: hidden; z-index: -1; }
+.topography { position: absolute; inset: 0; overflow: hidden; z-index: -1; contain: strict; }
 .topography::after {
     content: ""; position: absolute; inset: 0;
     background: repeating-linear-gradient(90deg, transparent 0 34px, #5470471f 34px 35px),
