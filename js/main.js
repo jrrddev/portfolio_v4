@@ -113,16 +113,33 @@
             pulseTime: -10
         };
 
-        let plateRect = plate.getBoundingClientRect();
+        let plateDocTop = 0;
+        let plateDocLeft = 0;
+        let plateWidth = 1;
+        let plateHeight = 1;
         const updatePlateRect = () => {
-            plateRect = plate.getBoundingClientRect();
+            const rect = plate.getBoundingClientRect();
+            plateDocTop = rect.top + window.scrollY;
+            plateDocLeft = rect.left + window.scrollX;
+            plateWidth = rect.width || 1;
+            plateHeight = rect.height || 1;
         };
+        updatePlateRect();
         window.addEventListener('resize', updatePlateRect, { passive: true });
-        window.addEventListener('scroll', updatePlateRect, { passive: true });
+        if (typeof ResizeObserver === 'function') {
+            const plateRo = new ResizeObserver(updatePlateRect);
+            plateRo.observe(document.documentElement);
+            plateRo.observe(plate);
+        }
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(updatePlateRect).catch(() => {});
+        }
 
         plate.addEventListener('pointermove', (e) => {
-            pointer.normX = (e.clientX - plateRect.left) / (plateRect.width || 1);
-            pointer.normY = (e.clientY - plateRect.top) / (plateRect.height || 1);
+            const plateLeft = plateDocLeft - window.scrollX;
+            const plateTop = plateDocTop - window.scrollY;
+            pointer.normX = (e.clientX - plateLeft) / plateWidth;
+            pointer.normY = (e.clientY - plateTop) / plateHeight;
             pointer.targetX = (pointer.normX - 0.5) * 2;
             pointer.targetY = (pointer.normY - 0.5) * 2;
             pointer.active = true;
@@ -204,27 +221,26 @@
         const cols = 28;
         const rows = 22;
         const fov = 340;
+        const gridCount = rows * cols;
+        const sxBuf = new Float32Array(gridCount);
+        const syBuf = new Float32Array(gridCount);
+        const wyBuf = new Float32Array(gridCount);
+        const scaleBuf = new Float32Array(gridCount);
+        const projOut = { sx: 0, sy: 0, scale: 1 };
 
-        function project3D(x, y, z, pitch, yaw) {
+        function project3D(x, y, z, cosY, sinY, cosP, sinP) {
             // Rotate around Y axis (yaw)
-            const cosY = Math.cos(yaw);
-            const sinY = Math.sin(yaw);
             const x1 = x * cosY - z * sinY;
             const z1 = z * cosY + x * sinY;
 
             // Rotate around X axis (pitch)
-            const cosP = Math.cos(pitch);
-            const sinP = Math.sin(pitch);
             const y2 = y * cosP - z1 * sinP;
             const z2 = z1 * cosP + y * sinP + 260;
 
             const scale = fov / Math.max(60, z2);
-            return {
-                sx: width * 0.5 + x1 * scale,
-                sy: height * 0.54 - y2 * scale,
-                scale,
-                depth: z2
-            };
+            projOut.sx = width * 0.5 + x1 * scale;
+            projOut.sy = height * 0.54 - y2 * scale;
+            projOut.scale = scale;
         }
 
         let animTime = 0;
@@ -277,26 +293,33 @@
 
             const pitch = 0.62 + pointer.y * 0.18;
             const yaw = -0.28 + pointer.x * 0.24 + (prefersReducedMotion ? 0 : Math.sin(animTime * 0.15) * 0.05);
+            const cosY = Math.cos(yaw);
+            const sinY = Math.sin(yaw);
+            const cosP = Math.cos(pitch);
+            const sinP = Math.sin(pitch);
 
             const spanX = width * 0.95;
             const spanZ = height * 1.05;
-            const grid = [];
+            const halfSpanX = spanX * 0.5;
+            const halfSpanZ = spanZ * 0.5;
+            const invColsMinus1 = 1 / (cols - 1);
+            const invRowsMinus1 = 1 / (rows - 1);
 
             for (let r = 0; r < rows; r++) {
-                const rowPts = [];
-                const nz = (r / (rows - 1) - 0.5) * 2; // -1 to 1
+                const nz = (r * invRowsMinus1 - 0.5) * 2; // -1 to 1
+                const wz = nz * halfSpanZ;
+                const rowOffset = r * cols;
                 for (let c = 0; c < cols; c++) {
-                    const nx = (c / (cols - 1) - 0.5) * 2; // -1 to 1
-                    const wx = nx * (spanX * 0.5);
-                    const wz = nz * (spanZ * 0.5);
+                    const nx = (c * invColsMinus1 - 0.5) * 2; // -1 to 1
+                    const wx = nx * halfSpanX;
                     const wy = getElevation(nx * 2, nz * 2, animTime);
-                    const proj = project3D(wx, wy, wz, pitch, yaw);
-                    proj.wy = wy;
-                    proj.nx = nx;
-                    proj.nz = nz;
-                    rowPts.push(proj);
+                    project3D(wx, wy, wz, cosY, sinY, cosP, sinP);
+                    const idx = rowOffset + c;
+                    sxBuf[idx] = projOut.sx;
+                    syBuf[idx] = projOut.sy;
+                    wyBuf[idx] = wy;
+                    scaleBuf[idx] = projOut.scale;
                 }
-                grid.push(rowPts);
             }
 
             // Draw longitudinal terrain ribs (subtle sage lines)
@@ -305,9 +328,9 @@
             for (let c = 0; c < cols; c += 2) {
                 ctx.beginPath();
                 for (let r = 0; r < rows; r++) {
-                    const pt = grid[r][c];
-                    if (r === 0) ctx.moveTo(pt.sx, pt.sy);
-                    else ctx.lineTo(pt.sx, pt.sy);
+                    const idx = r * cols + c;
+                    if (r === 0) ctx.moveTo(sxBuf[idx], syBuf[idx]);
+                    else ctx.lineTo(sxBuf[idx], syBuf[idx]);
                 }
                 ctx.stroke();
             }
@@ -315,11 +338,12 @@
             // Draw latitudinal 3D topographic contour lines
             for (let r = 0; r < rows; r++) {
                 const isMajorContour = r % 4 === 0;
+                const rowOffset = r * cols;
                 ctx.beginPath();
                 for (let c = 0; c < cols; c++) {
-                    const pt = grid[r][c];
-                    if (c === 0) ctx.moveTo(pt.sx, pt.sy);
-                    else ctx.lineTo(pt.sx, pt.sy);
+                    const idx = rowOffset + c;
+                    if (c === 0) ctx.moveTo(sxBuf[idx], syBuf[idx]);
+                    else ctx.lineTo(sxBuf[idx], syBuf[idx]);
                 }
                 if (isMajorContour) {
                     ctx.strokeStyle = 'rgba(25, 60, 50, 0.52)';
@@ -332,13 +356,14 @@
             }
 
             // Highlight elevation peaks & survey datum vertices in safety orange (#ff713c)
+            ctx.fillStyle = '#ff713c';
             for (let r = 2; r < rows - 2; r += 3) {
+                const rowOffset = r * cols;
                 for (let c = 2; c < cols - 2; c += 4) {
-                    const pt = grid[r][c];
-                    if (pt.wy > 14) {
-                        ctx.fillStyle = '#ff713c';
+                    const idx = rowOffset + c;
+                    if (wyBuf[idx] > 14) {
                         ctx.beginPath();
-                        ctx.arc(pt.sx, pt.sy, 2.1 * pt.scale, 0, Math.PI * 2);
+                        ctx.arc(sxBuf[idx], syBuf[idx], 2.1 * scaleBuf[idx], 0, Math.PI * 2);
                         ctx.fill();
                     }
                 }
@@ -347,25 +372,30 @@
             // Draw 3D interactive cursor survey beacon on the terrain surface
             if (pointer.active) {
                 const beaconY = getElevation(pointer.x * 2, pointer.y * 2, animTime);
-                const beacon = project3D(
+                project3D(
                     pointer.x * (spanX * 0.45),
                     beaconY,
                     pointer.y * (spanZ * 0.45),
-                    pitch,
-                    yaw
+                    cosY,
+                    sinY,
+                    cosP,
+                    sinP
                 );
+                const bsx = projOut.sx;
+                const bsy = projOut.sy;
+                const bscale = projOut.scale;
 
                 ctx.strokeStyle = '#ff713c';
                 ctx.lineWidth = 1.4;
                 ctx.beginPath();
-                ctx.arc(beacon.sx, beacon.sy, 11 * beacon.scale, 0, Math.PI * 2);
+                ctx.arc(bsx, bsy, 11 * bscale, 0, Math.PI * 2);
                 ctx.stroke();
 
                 ctx.beginPath();
-                ctx.moveTo(beacon.sx - 16 * beacon.scale, beacon.sy);
-                ctx.lineTo(beacon.sx + 16 * beacon.scale, beacon.sy);
-                ctx.moveTo(beacon.sx, beacon.sy - 16 * beacon.scale);
-                ctx.lineTo(beacon.sx, beacon.sy + 16 * beacon.scale);
+                ctx.moveTo(bsx - 16 * bscale, bsy);
+                ctx.lineTo(bsx + 16 * bscale, bsy);
+                ctx.moveTo(bsx, bsy - 16 * bscale);
+                ctx.lineTo(bsx, bsy + 16 * bscale);
                 ctx.stroke();
             }
 
@@ -626,17 +656,35 @@
 
         const cardinals = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
 
-        let compassCenter = { x: 0, y: 0 };
-        let plateRect = plate.getBoundingClientRect();
+        let compassDocX = 0;
+        let compassDocY = 0;
+        let plateDocLeft = 0;
+        let plateDocTop = 0;
+        let plateWidth = 1;
+        let plateHeight = 1;
         function cacheGeometry() {
+            const scrollX = window.scrollX;
+            const scrollY = window.scrollY;
             const cRect = compass.getBoundingClientRect();
-            compassCenter.x = cRect.left + cRect.width * 0.5;
-            compassCenter.y = cRect.top + cRect.height * 0.5;
-            plateRect = plate.getBoundingClientRect();
+            compassDocX = cRect.left + cRect.width * 0.5 + scrollX;
+            compassDocY = cRect.top + cRect.height * 0.5 + scrollY;
+            const pRect = plate.getBoundingClientRect();
+            plateDocLeft = pRect.left + scrollX;
+            plateDocTop = pRect.top + scrollY;
+            plateWidth = pRect.width || 1;
+            plateHeight = pRect.height || 1;
         }
         cacheGeometry();
         window.addEventListener('resize', cacheGeometry, { passive: true });
-        window.addEventListener('scroll', cacheGeometry, { passive: true });
+        if (typeof ResizeObserver === 'function') {
+            const geomRo = new ResizeObserver(cacheGeometry);
+            geomRo.observe(document.documentElement);
+            geomRo.observe(plate);
+            geomRo.observe(compass);
+        }
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(cacheGeometry).catch(() => {});
+        }
 
         const compassObs = new IntersectionObserver((entries) => {
             heroVisible = entries[0].isIntersecting;
@@ -651,7 +699,9 @@
 
         window.addEventListener('pointermove', (e) => {
             if (prefersReducedMotion || !heroVisible) return;
-            const rad = Math.atan2(e.clientY - compassCenter.y, e.clientX - compassCenter.x);
+            const compassViewportX = compassDocX - window.scrollX;
+            const compassViewportY = compassDocY - window.scrollY;
+            const rad = Math.atan2(e.clientY - compassViewportY, e.clientX - compassViewportX);
             targetAngle = (rad * 180) / Math.PI + 90;
             scheduleCompass();
         }, { passive: true });
@@ -659,8 +709,10 @@
         // 3D Tilt on Portrait Print when hovering over Portrait Plate
         if (print && !prefersReducedMotion) {
             plate.addEventListener('pointermove', (e) => {
-                const nx = (e.clientX - plateRect.left) / (plateRect.width || 1) - 0.5;
-                const ny = (e.clientY - plateRect.top) / (plateRect.height || 1) - 0.5;
+                const plateLeft = plateDocLeft - window.scrollX;
+                const plateTop = plateDocTop - window.scrollY;
+                const nx = (e.clientX - plateLeft) / plateWidth - 0.5;
+                const ny = (e.clientY - plateTop) / plateHeight - 0.5;
                 const rotX = -ny * 11;
                 const rotY = nx * 13;
                 print.style.transform = `rotate(-5deg) rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg) translateZ(14px)`;
@@ -1148,9 +1200,10 @@
         let currentShear = 0;
         let currentStretch = 1;
 
-        let lastWrittenSkew = '0.000deg';
-        let lastWrittenShear = '0.000deg';
-        let lastWrittenStretch = '1.0000';
+        const skewTargets = Array.from(document.querySelectorAll(
+            '.hero h1, .section-title, .project h3, .field-record__hours strong, .field-record__entry h3, .research-copy h3, .study-score, .training-record__title, .training-record__date strong'
+        ));
+        let lastWrittenTransform = '';
         let scrollRafId = 0;
         let scrollActiveUntil = 0;
 
@@ -1274,21 +1327,16 @@
             if (Math.abs(currentShear) < 0.004) currentShear = 0;
             if (Math.abs(currentStretch - 1) < 0.0004) currentStretch = 1;
 
-            const nextSkew = `${currentSkew.toFixed(3)}deg`;
-            const nextShear = `${currentShear.toFixed(3)}deg`;
-            const nextStretch = currentStretch.toFixed(4);
+            const isSettled = currentSkew === 0 && currentShear === 0 && currentStretch === 1;
+            const nextTransform = isSettled
+                ? ''
+                : `skewY(${currentSkew.toFixed(3)}deg) skewX(${currentShear.toFixed(3)}deg) scaleY(${currentStretch.toFixed(4)})`;
 
-            if (nextSkew !== lastWrittenSkew) {
-                lastWrittenSkew = nextSkew;
-                root.style.setProperty('--scroll-skew', nextSkew);
-            }
-            if (nextShear !== lastWrittenShear) {
-                lastWrittenShear = nextShear;
-                root.style.setProperty('--scroll-shear', nextShear);
-            }
-            if (nextStretch !== lastWrittenStretch) {
-                lastWrittenStretch = nextStretch;
-                root.style.setProperty('--scroll-stretch', nextStretch);
+            if (nextTransform !== lastWrittenTransform) {
+                lastWrittenTransform = nextTransform;
+                for (let i = 0; i < skewTargets.length; i++) {
+                    skewTargets[i].style.transform = nextTransform;
+                }
             }
 
             const isMoving = Math.abs(rawVelocity) > 0.02 || currentSkew !== 0 || currentShear !== 0 || currentStretch !== 1 || time < scrollActiveUntil;
@@ -1376,6 +1424,8 @@
             let cursorRafId = 0;
 
             const interactiveHoverSelector = 'a, button, summary, input, .tags li, .compass, .vernier-rail, .vernier-waypoint';
+            let lastHoverTarget = null;
+            let lastHoverResult = false;
 
             function wakeCursor() {
                 if (active && !cursorRafId && !perfState.hidden) {
@@ -1393,8 +1443,14 @@
                     cursor.style.translate = `${curX.toFixed(2)}px ${curY.toFixed(2)}px`;
                     cursor.classList.add('is-active');
                 }
-                const isHover = Boolean(e.target && e.target.closest && e.target.closest(interactiveHoverSelector));
-                cursor.classList.toggle('is-hovering', isHover);
+                if (e.target !== lastHoverTarget) {
+                    lastHoverTarget = e.target;
+                    const nextHover = Boolean(e.target && e.target.closest && e.target.closest(interactiveHoverSelector));
+                    if (nextHover !== lastHoverResult) {
+                        lastHoverResult = nextHover;
+                        cursor.classList.toggle('is-hovering', nextHover);
+                    }
+                }
                 wakeCursor();
             }, { passive: true });
 
@@ -1504,6 +1560,31 @@
         const atmosphere = document.createElement('div');
         atmosphere.className = 'paper-atmosphere';
         atmosphere.setAttribute('aria-hidden', 'true');
+
+        // Pre-bake 180x180 archival paper grain tile once (replaces live SVG feTurbulence filter)
+        try {
+            const grainSize = 180;
+            const grainCanvas = document.createElement('canvas');
+            grainCanvas.width = grainSize;
+            grainCanvas.height = grainSize;
+            const grainCtx = grainCanvas.getContext('2d');
+            if (grainCtx) {
+                const imgData = grainCtx.createImageData(grainSize, grainSize);
+                const pixels = imgData.data;
+                for (let i = 0; i < pixels.length; i += 4) {
+                    pixels[i] = 25;
+                    pixels[i + 1] = 60;
+                    pixels[i + 2] = 50;
+                    pixels[i + 3] = Math.floor(Math.random() * 13); // 0..12 (~4.7% max alpha)
+                }
+                grainCtx.putImageData(imgData, 0, 0);
+                const dataUrl = grainCanvas.toDataURL('image/png');
+                atmosphere.style.backgroundImage = `url(${dataUrl})`;
+            }
+        } catch (_) {
+            // Fallback gracefully if canvas is unavailable
+        }
+
         document.body.appendChild(atmosphere);
 
         if (!prefersReducedMotion && window.matchMedia('(pointer: fine)').matches) {
@@ -1534,28 +1615,60 @@
         const darkSections = Array.from(document.querySelectorAll('.toolkit, .field-record, .footer'));
         if (!header || darkSections.length === 0) return;
 
+        let headerProbeOffset = 0;
+        let darkZones = [];
+        let lastOverDark = null;
         let ticking = false;
-        function updateHeaderTheme() {
-            ticking = false;
+
+        function cacheHeaderZones() {
+            const scrollY = window.scrollY;
             const headerRect = header.getBoundingClientRect();
-            const probeY = headerRect.top + headerRect.height * 0.55;
-
-            const overDark = darkSections.some((sec) => {
+            headerProbeOffset = headerRect.top + headerRect.height * 0.55;
+            darkZones = darkSections.map((sec) => {
                 const r = sec.getBoundingClientRect();
-                return r.top <= probeY && r.bottom >= probeY;
+                return {
+                    top: r.top + scrollY,
+                    bottom: r.bottom + scrollY
+                };
             });
-
-            header.classList.toggle('is-dark-surface', overDark);
+            updateHeaderTheme();
         }
 
-        updateHeaderTheme();
+        function updateHeaderTheme() {
+            ticking = false;
+            const probeDocY = window.scrollY + headerProbeOffset;
+
+            let overDark = false;
+            for (let i = 0; i < darkZones.length; i++) {
+                const zone = darkZones[i];
+                if (zone.top <= probeDocY && zone.bottom >= probeDocY) {
+                    overDark = true;
+                    break;
+                }
+            }
+
+            if (overDark !== lastOverDark) {
+                lastOverDark = overDark;
+                header.classList.toggle('is-dark-surface', overDark);
+            }
+        }
+
+        cacheHeaderZones();
         window.addEventListener('scroll', () => {
             if (!ticking) {
                 ticking = true;
                 requestAnimationFrame(updateHeaderTheme);
             }
         }, { passive: true });
-        window.addEventListener('resize', updateHeaderTheme, { passive: true });
+        window.addEventListener('resize', cacheHeaderZones, { passive: true });
+        if (typeof ResizeObserver === 'function') {
+            const headerRo = new ResizeObserver(cacheHeaderZones);
+            headerRo.observe(document.documentElement);
+            headerRo.observe(header);
+        }
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(cacheHeaderZones).catch(() => {});
+        }
     }
 
     /* ==========================================================================
