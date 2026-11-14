@@ -54,10 +54,49 @@
     border-radius: 2px;
 }
 
+/* Whole-Hero Orbital Tech Stage & Glowing Rainbow Comets Canvas */
+.hero-stage {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
+    min-height: calc(100vh - 4.72rem);
+    min-height: clamp(34rem, calc(100svh - 4.72rem), 78rem);
+    overflow: hidden;
+    --orbit-rx: 640px;
+    --orbit-ry: 320px;
+    --orbit-node-size: 56px;
+}
+
+.hero-stage .hero {
+    padding-block: clamp(3.6rem, 6vh, 6.5rem);
+    gap: clamp(2.4rem, 6vw, 6.8rem);
+}
+
+.hero-stage .hero-copy {
+    position: relative;
+    z-index: 4;
+    pointer-events: none;
+}
+
+.hero-stage .hero-copy>* {
+    pointer-events: auto;
+}
+
+.orbit-rainbow-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: none;
+}
+
 /* 3D Hero Canvas & Interactive Portrait Plate */
 .portrait-plate {
+    position: relative;
+    z-index: 2;
     perspective: 1100px;
-    transform-style: preserve-3d;
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
     overflow: hidden;
 }
@@ -83,24 +122,33 @@
     transition: opacity 0.5s ease;
 }
 
-.portrait-plate .plate-meta,
+.portrait-plate .plate-meta {
+    top: 2.8%;
+    left: 3%;
+    right: 3%;
+    z-index: 2;
+    pointer-events: none;
+}
+
 .portrait-plate .plate-cross {
+    bottom: 2.8%;
+    right: 3%;
     z-index: 2;
     pointer-events: none;
 }
 
 .plate-coords {
     position: absolute;
-    left: 3.6%;
-    bottom: 4.2%;
+    left: 2.8%;
+    bottom: 2.8%;
     z-index: 2;
-    font: 700 0.54rem/1.2 var(--sans);
-    letter-spacing: 0.14em;
+    font: 700 0.52rem/1.2 var(--sans);
+    letter-spacing: 0.13em;
     text-transform: uppercase;
     color: var(--ink);
     background: rgba(247, 245, 237, 0.78);
     backdrop-filter: blur(4px);
-    padding: 0.28rem 0.48rem;
+    padding: 0.25rem 0.44rem;
     border: 1px solid rgba(25, 60, 50, 0.22);
     pointer-events: none;
 }
@@ -117,8 +165,17 @@
 }
 
 @keyframes signal-pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.35; transform: scale(0.8); }
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.35;
+        transform: scale(0.8);
+    }
 }
 
 .signal {
@@ -130,6 +187,144 @@
     z-index: 2;
     will-change: transform;
     transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease;
+}
+
+/* 360° Orbital Tech Stack Ring across Upper Hero Stage */
+.tech-orbit {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    z-index: 3;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.orbit-ring,
+.orbit-ring-outer {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    border-radius: 50%;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+}
+
+.orbit-ring {
+    width: calc(var(--orbit-rx) * 2);
+    height: calc(var(--orbit-ry) * 2);
+    border: 1px dashed rgba(25, 60, 50, 0.16);
+}
+
+.orbit-ring-outer {
+    width: calc(var(--orbit-rx) * 2 + 16px);
+    height: calc(var(--orbit-ry) * 2 + 16px);
+    border: 1px solid rgba(25, 60, 50, 0.08);
+}
+
+.orbit-list {
+    position: relative;
+    width: 0;
+    height: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.orbit-node {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--orbit-node-size);
+    height: var(--orbit-node-size);
+    margin-left: calc(var(--orbit-node-size) * -0.5);
+    margin-top: calc(var(--orbit-node-size) * -0.5);
+    pointer-events: none;
+    will-change: transform;
+}
+
+.orbit-node:hover,
+.orbit-node:focus-within,
+.orbit-node.is-linked {
+    z-index: 10;
+}
+
+.orbit-medallion {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border-radius: 7px;
+    border: 1.5px solid rgba(25, 60, 50, 0.18);
+    background: rgba(255, 253, 247, 0.86);
+    box-shadow: 0 6px 16px rgba(25, 60, 50, 0.10), 0 1px 3px rgba(25, 60, 50, 0.06);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 0.2s ease,
+        box-shadow 0.22s ease,
+        background-color 0.2s ease;
+}
+
+.orbit-medallion:hover,
+.orbit-medallion:focus-visible,
+.orbit-node.is-linked .orbit-medallion {
+    transform: scale(1.16);
+    border-color: var(--orange);
+    background: #fffcf4;
+    box-shadow: 0 10px 22px rgba(25, 60, 50, 0.15), 0 0 0 2px rgba(255, 113, 60, 0.38);
+    z-index: 6;
+}
+
+.orbit-medallion:focus-visible {
+    outline: 2px solid var(--orange);
+    outline-offset: 3px;
+}
+
+.orbit-medallion .tech-logo {
+    width: 72%;
+    height: 72%;
+    display: block;
+    pointer-events: none;
+}
+
+.orbit-node[data-tech="react"] .tech-logo {
+    transform: rotate(var(--react-orbit, 0deg));
+}
+
+.orbit-label {
+    position: absolute;
+    bottom: calc(100% + 7px);
+    left: 50%;
+    transform: translate(-50%, 4px);
+    padding: 0.22rem 0.46rem;
+    background: var(--ink);
+    color: var(--paper);
+    border-left: 2.5px solid var(--orange);
+    font: 700 0.56rem/1.1 var(--sans);
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    box-shadow: 2px 3px 0 rgba(25, 60, 50, 0.22);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.16s ease, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.orbit-node.is-upper .orbit-label {
+    top: calc(100% + 7px);
+    bottom: auto;
+    transform: translate(-50%, -4px);
+}
+
+.orbit-medallion:hover .orbit-label,
+.orbit-medallion:focus-visible .orbit-label,
+.orbit-node.is-linked .orbit-label {
+    opacity: 1;
+    transform: translate(-50%, 0);
 }
 
 /* Interactive Compass & Bearing Readout */
@@ -170,14 +365,29 @@
     opacity: 1;
 }
 
-/* Interactive Toolkit Marquee/Hover highlight */
+/* Interactive Toolkit Strip & Hover Sync with Orbit */
+.toolkit-inner {
+    gap: clamp(1.1rem, 2vw, 2rem);
+}
+
+.toolkit h2 {
+    padding-right: clamp(1rem, 1.6vw, 1.5rem);
+}
+
+.toolkit ul {
+    gap: 0.45rem clamp(0.65rem, 1.25vw, 1.15rem);
+}
+
 .toolkit li {
     position: relative;
     cursor: default;
+    gap: clamp(0.42rem, 0.85vw, 0.72rem);
+    font-size: clamp(0.98rem, 1.24vw, 1.24rem);
     transition: color 0.2s ease, transform 0.2s ease;
 }
 
-.toolkit li:hover {
+.toolkit li:hover,
+.toolkit li.is-linked {
     color: var(--orange);
     transform: translateY(-2px);
 }
@@ -186,7 +396,36 @@
     display: none;
 }
 
+@media (max-width: 60rem) {
+    .hero-stage {
+        --orbit-node-size: 48px;
+    }
+}
+
+@media (max-width: 60rem) and (orientation: portrait) {
+    .hero-stage {
+        min-height: clamp(32rem, 64svh, 46rem);
+    }
+}
+
 @media (max-width: 47rem) {
+    .hero-stage {
+        display: block;
+        min-height: auto;
+        --orbit-node-size: 40px;
+    }
+
+    .hero-stage .hero {
+        padding-block: clamp(4.2rem, 11vw, 5.6rem);
+    }
+
+    .plate-coords {
+        left: 2.6%;
+        bottom: 2.6%;
+        font-size: 0.44rem;
+        padding: 0.2rem 0.36rem;
+    }
+
     .toolkit {
         overflow: hidden;
     }
@@ -214,13 +453,14 @@
         width: max-content;
         flex: 0 0 auto;
         gap: 0;
-        animation: toolkit-marquee-ltr 16s linear infinite;
+        animation: toolkit-marquee-ltr 24s linear infinite;
     }
 
     .toolkit li {
         white-space: nowrap;
         flex-shrink: 0;
-        padding-right: 1.5rem;
+        padding-right: 1.4rem;
+        font-size: 1.15rem;
     }
 
     .toolkit li.toolkit-clone {
@@ -232,6 +472,7 @@
     0% {
         transform: translate3d(-50%, 0, 0);
     }
+
     100% {
         transform: translate3d(0%, 0, 0);
     }
@@ -324,7 +565,7 @@
     z-index: 0;
 }
 
-.field-record > .wrap {
+.field-record>.wrap {
     position: relative;
     z-index: 1;
 }
@@ -346,7 +587,8 @@
 
 .score-meter-fill {
     height: 100%;
-    width: 90%; /* 4.50 / 5.00 = 90% */
+    width: 90%;
+    /* 4.50 / 5.00 = 90% */
     background: var(--orange);
     transform: scaleX(0);
     transform-origin: left center;
@@ -589,6 +831,7 @@ html.lenis body {
 .study-score,
 .training-record__title,
 .training-record__date strong {
+    transform: skewY(var(--scroll-skew, 0deg)) skewX(var(--scroll-shear, 0deg)) scaleY(var(--scroll-stretch, 1));
     transform-origin: left center;
 }
 
@@ -668,6 +911,7 @@ summary,
         transform: scale(0.35);
         opacity: 0.95;
     }
+
     100% {
         transform: scale(2.15);
         opacity: 0;
@@ -683,7 +927,7 @@ summary,
     transition: transform 0.08s linear, background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
 
-.is-magnetic > span {
+.is-magnetic>span {
     display: inline-block;
     transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -710,9 +954,9 @@ summary,
         opacity: 0;
         will-change: translate, scale;
         transition: scale 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-                    border-color 0.2s ease,
-                    background-color 0.2s ease,
-                    opacity 0.2s ease;
+            border-color 0.2s ease,
+            background-color 0.2s ease,
+            opacity 0.2s ease;
     }
 
     .drafting-cursor.is-active {
@@ -780,6 +1024,7 @@ summary,
         opacity: 0;
         transform: scale(0.94) translateY(12px);
     }
+
     to {
         opacity: 1;
         transform: scale(1) translateY(0);
@@ -791,6 +1036,7 @@ summary,
         opacity: 1;
         transform: scale(1) translateY(0);
     }
+
     to {
         opacity: 0;
         transform: scale(0.95) translateY(8px);
@@ -814,9 +1060,10 @@ summary,
     z-index: 80;
     contain: strict;
     transform: translateZ(0);
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.042'/%3E%3C/svg%3E");
     background-repeat: repeat;
     background-size: 180px 180px;
-    mix-blend-mode: normal;
+    mix-blend-mode: multiply;
 }
 
 .paper-atmosphere-light {
@@ -830,12 +1077,14 @@ summary,
     border-radius: 50%;
     pointer-events: none;
     z-index: 79;
-    background: radial-gradient(circle, rgba(255, 232, 184, 0.14) 0%, rgba(255, 238, 204, 0.05) 42%, transparent 72%);
+    background: radial-gradient(circle, rgba(255, 238, 204, 0.18) 0%, transparent 72%);
+    mix-blend-mode: multiply;
     transform: translate3d(50vw, 28vh, 0);
     will-change: transform;
 }
 
-@media (hover: none), (pointer: coarse) {
+@media (hover: none),
+(pointer: coarse) {
     .paper-atmosphere-light {
         display: none;
     }
@@ -846,9 +1095,9 @@ summary,
    ========================================================================== */
 .site-header {
     transition: background-color 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-                color 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-                border-color 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-                box-shadow 0.34s ease;
+        color 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow 0.34s ease;
 }
 
 .site-header .monogram,
@@ -857,9 +1106,9 @@ summary,
 .site-header .cmd-trigger,
 .site-header .cmd-trigger kbd {
     transition: background-color 0.3s ease,
-                color 0.3s ease,
-                border-color 0.3s ease,
-                transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+        color 0.3s ease,
+        border-color 0.3s ease,
+        transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .site-header.is-dark-surface {
@@ -914,12 +1163,11 @@ summary,
         grid-row: 1;
         justify-self: end;
     }
+
     .cmd-trigger {
         display: none;
     }
-    .plate-coords {
-        font-size: 0.48rem;
-    }
+
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -927,9 +1175,21 @@ summary,
         opacity: 1;
         transform: none;
     }
+
     .score-meter-fill {
         transform: scaleX(1);
     }
+
+    .toolkit ul {
+        animation: none !important;
+        flex-wrap: wrap !important;
+        width: 100% !important;
+    }
+
+    .toolkit li.toolkit-clone {
+        display: none !important;
+    }
+
     .hero h1,
     .section-title,
     .project h3,
@@ -1064,16 +1324,12 @@ html.is-low-power .cmd-palette-backdrop {
         inset: 0;
         pointer-events: none;
         background-image:
-            repeating-linear-gradient(
-                to bottom,
+            repeating-linear-gradient(to bottom,
                 rgba(25, 60, 50, 0.52) 0 1px,
-                transparent 1px 30px
-            ),
-            repeating-linear-gradient(
-                to bottom,
+                transparent 1px 30px),
+            repeating-linear-gradient(to bottom,
                 rgba(72, 92, 80, 0.26) 0 1px,
-                transparent 1px 6px
-            );
+                transparent 1px 6px);
         background-size: 9px 100%, 4px 100%;
         background-position: right top, right top;
         background-repeat: no-repeat;
@@ -1087,16 +1343,12 @@ html.is-low-power .cmd-palette-backdrop {
 
     .vernier-scrollbar.is-rail-dark .vernier-ticks {
         background-image:
-            repeating-linear-gradient(
-                to bottom,
+            repeating-linear-gradient(to bottom,
                 rgba(247, 245, 237, 0.45) 0 1px,
-                transparent 1px 30px
-            ),
-            repeating-linear-gradient(
-                to bottom,
+                transparent 1px 30px),
+            repeating-linear-gradient(to bottom,
                 rgba(185, 209, 191, 0.26) 0 1px,
-                transparent 1px 6px
-            );
+                transparent 1px 6px);
     }
 
     /* Outer vertical progress spine + filled orange filament */
@@ -1162,8 +1414,8 @@ html.is-low-power .cmd-palette-backdrop {
         background: var(--paper);
         transform: rotate(45deg) scale(0.75);
         transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
-                    background-color 0.2s ease,
-                    border-color 0.2s ease;
+            background-color 0.2s ease,
+            border-color 0.2s ease;
     }
 
     .vernier-waypoint.is-on-dark .vernier-waypoint-pip {
@@ -1320,10 +1572,10 @@ html.is-low-power .cmd-palette-backdrop {
         transform: translate3d(10px, 0, 0);
         will-change: translate, transform, opacity;
         transition: opacity 0.22s ease,
-                    transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
-                    background-color 0.25s ease,
-                    color 0.25s ease,
-                    border-color 0.25s ease;
+            transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+            background-color 0.25s ease,
+            color 0.25s ease,
+            border-color 0.25s ease;
     }
 
     .vernier-scrollbar.is-scrolling .vernier-readout,
@@ -1397,6 +1649,7 @@ html.is-low-power .vernier-scrollbar.is-thumb-dark .vernier-readout {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
     .vernier-scrollbar,
     .vernier-ticks,
     .vernier-waypoint-pip,
@@ -1407,5 +1660,3 @@ html.is-low-power .vernier-scrollbar.is-thumb-dark .vernier-readout {
         transition: none !important;
     }
 }
-
-

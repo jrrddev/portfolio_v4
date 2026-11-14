@@ -1556,7 +1556,7 @@
        10. ATMOSPHERIC POLISH (Archival Paper Grain + Chameleon Sticky Header)
        ========================================================================== */
     function initAtmosphericPolish() {
-        // #4: Subtle Archival Paper Grain + GPU-Composited Ambient Desk-Light Overlay
+        // #4: Subtle Archival Paper Grain
         const atmosphere = document.createElement('div');
         atmosphere.className = 'paper-atmosphere';
         atmosphere.setAttribute('aria-hidden', 'true');
@@ -1586,29 +1586,6 @@
         }
 
         document.body.appendChild(atmosphere);
-
-        if (!prefersReducedMotion && window.matchMedia('(pointer: fine)').matches) {
-            const deskLight = document.createElement('div');
-            deskLight.className = 'paper-atmosphere-light';
-            deskLight.setAttribute('aria-hidden', 'true');
-            document.body.appendChild(deskLight);
-
-            let lightX = window.innerWidth * 0.5;
-            let lightY = window.innerHeight * 0.28;
-            let lightRafId = 0;
-
-            window.addEventListener('pointermove', (e) => {
-                if (e.pointerType && e.pointerType !== 'mouse') return;
-                lightX = e.clientX;
-                lightY = e.clientY;
-                if (!lightRafId) {
-                    lightRafId = requestAnimationFrame(() => {
-                        lightRafId = 0;
-                        deskLight.style.transform = `translate3d(${lightX}px, ${lightY}px, 0)`;
-                    });
-                }
-            }, { passive: true });
-        }
 
         // #7: Chameleon Dark / Light Sticky Header over Dark Sections (.toolkit, #experience, #contact)
         const header = document.querySelector('.site-header');
